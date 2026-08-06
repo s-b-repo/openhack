@@ -1,0 +1,21 @@
+{
+  "name": "@openhack/orchestration",
+  "version": "0.2.0",
+  "type": "module",
+  "private": true,
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types.ts",
+    "./graph": "./src/graph.ts",
+    "./store": "./src/store.ts",
+    "./frontier": "./src/frontier.ts",
+    "./heuristic": "./src/heuristic.ts",
+    "./controller": "./src/controller.ts"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@tsconfig/bun": "catalog:",
+    "typescript": "catalog:"
+  }
+}

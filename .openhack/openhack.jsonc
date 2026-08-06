@@ -1,0 +1,310 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {},
+  "permission": {},
+  "scope": {
+    "enabled": false,
+    "targets": [],
+    "exclusions": [],
+    "max_port_range": "1-65535",
+    "allowed_tools": [],
+    "disallowed_tools": [],
+    "require_confirmation_for": []
+  },
+  "safety": {
+    "enabled": true,
+    "whitelist": [],
+    "require_confirmation": ["rm -rf", "dd if=", "mkfs"],
+    "profiles": {}
+  },
+  "mcp": {
+    "hexstrike": {
+      "type": "local",
+      "command": ["bun", "run", "openhack-mcp-launcher", "hexstrike"],
+      "enabled": false,
+      "startupTimeout": 15000,
+      "healthcheck": { "tool": "hexstrike_health", "interval": 30000 }
+    },
+    "pentestai": {
+      "type": "local",
+      "command": ["ptai", "mcp"],
+      "enabled": false,
+      "startupTimeout": 30000,
+      "healthcheck": { "tool": "ptai_health", "interval": 60000 }
+    },
+    "rustsploit": {
+      "type": "local",
+      "command": ["{env:RUSTSPLOIT_PATH}", "--mcp"],
+      "enabled": false,
+      "startupTimeout": 10000,
+      "healthcheck": { "tool": "rustsploit_health", "interval": 30000 }
+    },
+    "arcticfox": {
+      "type": "local",
+      "command": ["{env:ARCTICFOX_PATH}", "mcp"],
+      "enabled": false,
+      "startupTimeout": 10000,
+      "healthcheck": { "tool": "arcticfox_ping", "interval": 30000 }
+    },
+    "sysreptor": {
+      "type": "local",
+      "command": ["bun", "run", "openhack-sysreptor"],
+      "enabled": false,
+      "startupTimeout": 10000,
+      "environment": {
+        "SYSREPTOR_URL": "{env:SYSREPTOR_URL}",
+        "SYSREPTOR_TOKEN": "{env:SYSREPTOR_API_TOKEN}"
+      }
+    },
+    // ROE-control MCP (packages/openhack-mcp-roe/). Exposes read/draft tools
+    // to any agent; sign_current and revoke are hard-gated on the two env
+    // vars below. Set them ONLY when the operator explicitly consents to
+    // agent-side signing for that shell session — leaving them unset keeps
+    // signing a human-only operation, which is the safe default.
+    "roe": {
+      "type": "local",
+      "command": ["bun", "run", "openhack-mcp-roe"],
+      "enabled": true,
+      "startupTimeout": 5000,
+      "environment": {
+        // Off by default. Set to "1" (or, in strict mode, a matching nonce)
+        // in the OPERATOR'S shell before starting the framework to permit
+        // agent-signing / -revocation for that session.
+        "OPENHACK_ROE_MCP_ALLOW_SIGN": "{env:OPENHACK_ROE_MCP_ALLOW_SIGN}",
+        "OPENHACK_ROE_MCP_ALLOW_REVOKE": "{env:OPENHACK_ROE_MCP_ALLOW_REVOKE}",
+        "OPENHACK_ROE_MCP_STRICT": "{env:OPENHACK_ROE_MCP_STRICT}"
+      }
+    },
+    // Evidence-capture MCP (packages/openhack-mcp-capture/). PNG screenshots +
+    // mini-HAR + rendered DOM into `.openhack/findings/evidence/<target>/`.
+    // All writes are hard-gated on OPENHACK_CAPTURE_MCP_ALLOW=1 AND the URL
+    // host being in scope. Reads (list_evidence, evidence_stat) are ungated.
+    "capture": {
+      "type": "local",
+      "command": ["bun", "run", "openhack-mcp-capture"],
+      "enabled": true,
+      "startupTimeout": 5000,
+      "environment": {
+        "OPENHACK_CAPTURE_MCP_ALLOW": "{env:OPENHACK_CAPTURE_MCP_ALLOW}"
+      }
+    },
+    // Findings-store MCP (packages/openhack-mcp-findings/). Read tools are open;
+    // mark_verified / mark_false_positive / delete are gated on
+    // OPENHACK_FINDINGS_MCP_ALLOW_MUTATE=1 so an AI can't silently promote its
+    // own uncertain findings without operator consent.
+    "findings": {
+      "type": "local",
+      "command": ["bun", "run", "openhack-mcp-findings"],
+      "enabled": true,
+      "startupTimeout": 5000,
+      "environment": {
+        "OPENHACK_FINDINGS_MCP_ALLOW_MUTATE": "{env:OPENHACK_FINDINGS_MCP_ALLOW_MUTATE}"
+      }
+    },
+    // Cloudflare-fronting MCP (packages/openhack-mcp-cloudflare/). Read tools
+    // are open; IP-access-rule add/delete is gated on
+    // OPENHACK_CF_MCP_ALLOW_WRITE=1 + a CF_API_TOKEN with the right scopes.
+    "cloudflare": {
+      "type": "local",
+      "command": ["bun", "run", "openhack-mcp-cloudflare"],
+      "enabled": false,
+      "startupTimeout": 5000,
+      "environment": {
+        "CF_API_TOKEN": "{env:CF_API_TOKEN}",
+        "OPENHACK_CF_MCP_ALLOW_WRITE": "{env:OPENHACK_CF_MCP_ALLOW_WRITE}"
+      }
+    },
+    // DNS-enumeration MCP (packages/openhack-mcp-dns/). Read-only passive
+    // recon: DNS resolves, crt.sh subdomains, urlscan.io lookups. No gating —
+    // no mutating side-effects at all.
+    "dns": {
+      "type": "local",
+      "command": ["bun", "run", "openhack-mcp-dns"],
+      "enabled": true,
+      "startupTimeout": 5000
+    },
+    "filesystem": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-filesystem", "."],
+      "enabled": false,
+      "startupTimeout": 15000
+    },
+    "git": {
+      "type": "local",
+      "command": ["uvx", "mcp-server-git"],
+      "enabled": false,
+      "startupTimeout": 15000
+    },
+    "fetch": {
+      "type": "local",
+      "command": ["uvx", "mcp-server-fetch"],
+      "enabled": false,
+      "startupTimeout": 15000
+    },
+    "memory": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-memory"],
+      "enabled": false,
+      "startupTimeout": 15000
+    },
+    "websearch": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-brave-search"],
+      "enabled": false,
+      "startupTimeout": 15000,
+      "environment": { "BRAVE_API_KEY": "{env:BRAVE_API_KEY}" }
+    },
+    // Stealth browser (Camoufox anti-detect Firefox) — passes Cloudflare managed
+    // challenges (virtual-display mode) and carries cf_clearance across requests, so
+    // an agent can test targets whose app layer sits behind a bot-mitigation WAF.
+    // AUTHORIZED use only; still gated by scope/ROE. Setup: see packages/openhack/mcp/README.
+    //   pipx install camoufox && camoufox fetch && pipx inject camoufox "playwright==1.49.1" "mcp>=1.2"
+    // Point command[0] at that venv's python. Needs Xvfb (apt install xvfb) for virtual mode.
+    "camoufox": {
+      "type": "local",
+      "command": ["{env:HOME}/.local/share/pipx/venvs/camoufox/bin/python", "{env:HOME}/openhack/packages/openhack/mcp/camoufox_mcp.py"],
+      "enabled": false,
+      "startupTimeout": 60000,
+      "environment": { "CAMOUFOX_HEADLESS": "virtual" }
+    },
+    // OnlyOffice document server — generates docx/xlsx/pptx reports from the findings
+    // store, replacing SysReptor (no external report platform to deploy). Install:
+    // /home/kali/onlyoffice-mcp (python venv). Opt-in like the rest.
+    "onlyoffice": {
+      "type": "local",
+      "command": ["{env:HOME}/onlyoffice-mcp/.venv/bin/onlyoffice-mcp"],
+      "enabled": false,
+      "startupTimeout": 15000,
+      "healthcheck": { "tool": "server_info", "interval": 30000 }
+    }
+  },
+  "automode": {
+    "output_dir": ".openhack/automode-results",
+    "default_timeout": 600,
+    "save_individual": true,
+    "save_summary": true,
+    "max_cost_per_batch": 10.00,
+    "max_cost_per_task": 2.50,
+    "confirm_if_above": 5.00,
+    "cheap_model_for_planning": "anthropic/claude-haiku-4-5",
+    "expensive_model_for_exploitation": "anthropic/claude-sonnet-4",
+    "token_budget_per_task": 100000
+  },
+  "codeguard": {
+    "enabled": true,
+    "note": "Blocks the agent from writing error-swallowing, suppressed-diagnostic, and silent-stub patterns; warns on unchecked results / hardcoded secrets. Waive a false positive with an inline 'openhack-allow: <rule-id>' comment. See packages/openhack/src/codeguard.ts for rule ids."
+  },
+  "agent": {
+    "build": {
+      "permission": {
+        "mcp_*": "allow",
+        "edit": "allow",
+        "bash": "allow"
+      },
+      "mcp_tools": {
+        "hexstrike": ["hexstrike_*"],
+        "pentestai": ["ptai_*"],
+        "rustsploit": ["rustsploit_*"],
+        "arcticfox": ["arcticfox_*"],
+        "sysreptor": ["sysreptor_*"],
+        "filesystem": ["filesystem_*"],
+        "git": ["git_*"],
+        "fetch": ["fetch_*"],
+        "memory": ["memory_*"],
+        "websearch": ["websearch_*"],
+        "camoufox": ["camoufox_*"],
+        // `build` is the top-level orchestrator; it gets every ROE tool,
+        // including the two env-gated ones. Specialists below get only read
+        // + draft + model tools so they can query and *propose* but not sign.
+        "roe": ["roe_*"]
+      },
+      "tool_cap": 80
+    },
+    "plan": {
+      "permission": {
+        "mcp_*": "deny",
+        "edit": "deny",
+        "bash": "deny"
+      }
+    },
+    "recon": {
+      "permission": {
+        "edit": "deny",
+        "bash": { "*": "ask", "nmap *": "allow", "rustscan *": "allow", "amass *": "allow", "subfinder *": "allow" }
+      },
+      "mcp_tools": {
+        "hexstrike": ["hexstrike_scan_*", "hexstrike_recon_*", "hexstrike_dns_*"],
+        "pentestai": ["ptai_port_scan", "ptai_subdomain_enum", "ptai_service_fingerprint"],
+        "rustsploit": ["rustsploit_scan_*"],
+        "camoufox": ["camoufox_*"],
+        // Specialists can READ, DRAFT edits, and VALIDATE, but not sign/revoke.
+        "roe": ["roe_status", "roe_validate", "roe_list_authorized_tools", "roe_list_authorized_models", "roe_validate_model", "roe_time_remaining_minutes", "roe_summary_markdown", "roe_get", "roe_create_draft", "roe_set_targets", "roe_set_authorized_tools", "roe_set_authorized_models", "roe_set_exclusions", "roe_set_expiry_days", "roe_set_notes", "roe_diff", "roe_add_authorized_model", "roe_remove_authorized_model"]
+      },
+      "tool_cap": 40
+    },
+    "exploit": {
+      "permission": {
+        "edit": "deny",
+        "bash": { "*": "ask", "msfvenom *": "allow", "sqlmap *": "allow", "nuclei *": "allow" }
+      },
+      "mcp_tools": {
+        "hexstrike": ["hexstrike_exploit_*", "hexstrike_sqli_*", "hexstrike_xss_*"],
+        "pentestai": ["ptai_run_probe_*", "ptai_exploit_*"],
+        "rustsploit": ["rustsploit_exploit_*"],
+        "camoufox": ["camoufox_*"],
+        // Read + validate only (no draft edits from exploit — an exploit
+        // specialist shouldn't be rewriting authorized_tools mid-run).
+        "roe": ["roe_status", "roe_validate", "roe_list_authorized_tools", "roe_list_authorized_models", "roe_validate_model", "roe_time_remaining_minutes", "roe_summary_markdown", "roe_get"]
+      },
+      "tool_cap": 50
+    },
+    "post-exploit": {
+      "permission": {
+        "edit": "deny",
+        "bash": { "*": "ask" }
+      },
+      "mcp_tools": {
+        "rustsploit": ["rustsploit_loot_*", "rustsploit_cred_*"],
+        "arcticfox": ["arcticfox_agent_deploy", "arcticfox_agent_status"],
+        "roe": ["roe_status", "roe_validate", "roe_list_authorized_tools", "roe_list_authorized_models", "roe_validate_model", "roe_time_remaining_minutes"]
+      },
+      "tool_cap": 30
+    },
+    "c2": {
+      "permission": {
+        "edit": "deny",
+        "bash": { "*": "allow" }
+      },
+      "mcp_tools": {
+        "arcticfox": ["arcticfox_*"],
+        "roe": ["roe_status", "roe_validate", "roe_time_remaining_minutes"]
+      },
+      "tool_cap": 20
+    },
+    "report": {
+      "permission": {
+        "edit": "allow",
+        "bash": { "*": "deny", "mkdir -p .openhack/reports/*": "allow", "cat * > .openhack/reports/*": "allow" }
+      },
+      "mcp_tools": {
+        "onlyoffice": ["onlyoffice_*"],
+        "sysreptor": ["sysreptor_*"],
+        // Report generator gets a read-only + markdown view so the ROE
+        // summary can be embedded verbatim in the final report.
+        "roe": ["roe_status", "roe_get", "roe_summary_markdown", "roe_list_authorized_tools", "roe_list_authorized_models", "roe_time_remaining_minutes"]
+      },
+      "tool_cap": 10
+    },
+    "cleanup": {
+      "permission": {
+        "edit": "allow",
+        "bash": { "*": "allow" }
+      },
+      "mcp_tools": {
+        "arcticfox": ["arcticfox_*"],
+        "roe": ["roe_status", "roe_time_remaining_minutes"]
+      },
+      "tool_cap": 10
+    }
+  }
+}

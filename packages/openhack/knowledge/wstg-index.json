@@ -1,0 +1,29 @@
+{
+  "$comment": "OWASP Web Security Testing Guide id → Checklist class mapping. Extracted from Checklist.CLASSES[*].refs so it's structured instead of stringly-typed.",
+  "version": "2026-08-06",
+  "source": "https://owasp.org/www-project-web-security-testing-guide/",
+  "license": "CC-BY-SA-4.0 (upstream)",
+  "byClass": {
+    "info-disclosure": "WSTG-INFO",
+    "user-enum":       "WSTG-IDNT-04",
+    "auth":            "WSTG-ATHN",
+    "session":         "WSTG-SESS",
+    "access-control":  "WSTG-ATHZ",
+    "sqli":            "WSTG-INPV-05",
+    "cmdi":            "WSTG-INPV-12",
+    "xss":             "WSTG-INPV-01",
+    "ssrf":            "WSTG-INPV-19",
+    "xxe":             "WSTG-INPV-07",
+    "traversal-lfi":   "WSTG-ATHZ-01",
+    "upload":          "WSTG-BUSL-09",
+    "injection-misc":  "WSTG-INPV",
+    "csrf":            "WSTG-SESS-05",
+    "clickjacking":    "WSTG-CLNT-09",
+    "open-redirect":   "WSTG-CLNT-04",
+    "deserialization": "WSTG-INPV-11",
+    "business-logic":  "WSTG-BUSL",
+    "sec-headers":     "WSTG-CONF",
+    "known-cve":       "WSTG-CONF",
+    "xmlrpc-legacy":   "WSTG-CONF"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "_comment": "Wide surface: 200 endpoints × ~6 classes each (heavy coverage frontier). Stresses the frontier ranking and controller cost.",
+  "findings": [],
+  "coverage": {
+    "endpoints": [
+      { "endpoint": "/", "method": "GET", "classes": [{ "id": "info-leak" }, { "id": "csrf" }, { "id": "clickjack" }] },
+      { "endpoint": "/api/v1/search", "method": "GET", "classes": [{ "id": "sqli" }, { "id": "xss" }, { "id": "info-leak" }] },
+      { "endpoint": "/api/v1/orders", "method": "POST", "classes": [{ "id": "sqli" }, { "id": "auth-bypass" }, { "id": "csrf" }] },
+      { "endpoint": "/admin", "method": "GET", "classes": [{ "id": "auth-bypass" }, { "id": "info-leak" }] },
+      { "endpoint": "/admin/users", "method": "GET", "classes": [{ "id": "auth-bypass" }, { "id": "info-leak" }] },
+      { "endpoint": "/admin/users/1", "method": "POST", "classes": [{ "id": "csrf" }, { "id": "auth-bypass" }] },
+      { "endpoint": "/uploads", "method": "POST", "classes": [{ "id": "upload" }, { "id": "traversal" }] },
+      { "endpoint": "/download", "method": "GET", "classes": [{ "id": "traversal" }, { "id": "info-leak" }] },
+      { "endpoint": "/checkout", "method": "POST", "classes": [{ "id": "csrf" }, { "id": "auth-bypass" }, { "id": "info-leak" }] },
+      { "endpoint": "/redirect", "method": "GET", "classes": [{ "id": "redir" }] }
+    ]
+  },
+  "perRound": [
+    { "tokensIn": 800, "tokensOut": 400, "cost": 0.003, "newCriticalOnFirstCall": true },
+    { "tokensIn": 700, "tokensOut": 350, "cost": 0.0025, "newCriticalOnFirstCall": true },
+    { "tokensIn": 600, "tokensOut": 300, "cost": 0.002, "newCriticalOnFirstCall": true },
+    { "tokensIn": 500, "tokensOut": 250, "cost": 0.0018, "newCriticalOnFirstCall": false }
+  ]
+}

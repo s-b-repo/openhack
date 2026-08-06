@@ -1,0 +1,44 @@
+.DS_Store
+node_modules
+.worktrees
+.sst
+.env
+.env.local
+.idea
+.vscode
+.codex
+*~
+playground
+tmp
+dist
+ts-dist
+.turbo
+**/.serena
+.serena/
+**/.omo
+.omo/
+/result
+refs
+Session.vim
+/opencode.json
+a.out
+target
+.scripts
+.direnv/
+
+# Vendored third-party reference repositories (cloned via Phase 1 of the
+# Cloud Codes integration; see vendor/README.md). Not part of the build.
+vendor/
+
+# Local dev files
+opencode-dev
+UPCOMING_CHANGELOG.md
+logs/
+*.bun-build
+tsconfig.tsbuildinfo
+
+# OpenHack per-engagement runtime state — keep only the config template and
+# agent definitions; never commit findings, logs, secrets, ROE, or scope data.
+.openhack/*
+!.openhack/openhack.jsonc
+!.openhack/agents/

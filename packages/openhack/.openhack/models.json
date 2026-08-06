@@ -1,0 +1,6 @@
+{
+  "main": "anthropic/claude-sonnet-4",
+  "fast": "anthropic/claude-haiku-4-5",
+  "cheap": "deepseek/deepseek-v4",
+  "draft": "deepseek/deepseek-v4"
+}

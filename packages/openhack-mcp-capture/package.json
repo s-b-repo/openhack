@@ -1,0 +1,14 @@
+{
+  "name": "openhack-mcp-capture",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "main": "src/index.ts",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "openhack-mcp-common": "workspace:*"
+  },
+  "scripts": {
+    "start": "bun run src/index.ts"
+  }
+}

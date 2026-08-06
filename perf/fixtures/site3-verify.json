@@ -1,0 +1,21 @@
+{
+  "_comment": "Verify-path stress: pre-seeded high/critical findings all in 'uncertain' status. Exercises the heuristic controller's verify-finding branch heavily.",
+  "findings": [
+    { "title": "Critical: auth bypass at /admin", "severity": "critical", "cwe": "CWE-287", "affected_component": "http://example.com/admin", "status": "uncertain" },
+    { "title": "Critical: RCE via file upload", "severity": "critical", "cwe": "CWE-434", "affected_component": "http://example.com/uploads", "status": "uncertain" },
+    { "title": "High: SQL injection at /search", "severity": "high", "cwe": "CWE-89", "affected_component": "http://example.com/api/v1/search", "status": "uncertain" },
+    { "title": "High: SSRF via redirect", "severity": "high", "cwe": "CWE-918", "affected_component": "http://example.com/redirect", "status": "uncertain" },
+    { "title": "High: IDOR at /admin/users/1", "severity": "high", "cwe": "CWE-639", "affected_component": "http://example.com/admin/users/1", "status": "uncertain" },
+    { "title": "Critical: hard-coded creds in .env", "severity": "critical", "cwe": "CWE-798", "affected_component": "http://example.com/.env", "status": "uncertain" }
+  ],
+  "coverage": {
+    "endpoints": [
+      { "endpoint": "/admin", "method": "GET", "classes": [{ "id": "auth-bypass", "result": "vulnerable" }] },
+      { "endpoint": "/uploads", "method": "POST", "classes": [{ "id": "upload", "result": "vulnerable" }] }
+    ]
+  },
+  "perRound": [
+    { "tokensIn": 500, "tokensOut": 350, "cost": 0.002, "newCriticalOnFirstCall": false },
+    { "tokensIn": 400, "tokensOut": 300, "cost": 0.0015, "newCriticalOnFirstCall": false }
+  ]
+}
