@@ -1,0 +1,14 @@
+{
+  "name": "@opencode-ai/openhack",
+  "version": "0.2.0",
+  "type": "module",
+  "private": true,
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "bun test test/",
+    "refresh:knowledge": "bun run script/ingest-knowledge.ts"
+  },
+  "dependencies": {
+    "effect": "catalog:"
+  }
+}

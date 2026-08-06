@@ -1,0 +1,74 @@
+version: "3.9"
+
+networks:
+  openhack-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: "${OPENHACK_NET:-10.99.0.0/24}"
+          gateway: ${OPENHACK_GATEWAY:-10.99.0.1}
+
+services:
+  hexstrike:
+    build:
+      context: .
+      dockerfile: Docker/Dockerfile.hexstrike
+    image: openhack-hexstrike
+    container_name: openhack-hexstrike
+    networks:
+      openhack-net:
+        ipv4_address: "${HEXSTRIKE_IP:-10.99.0.10}"
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  pentestai:
+    build:
+      context: .
+      dockerfile: Docker/Dockerfile.pentestai
+    image: openhack-pentestai
+    container_name: openhack-pentestai
+    networks:
+      openhack-net:
+        ipv4_address: "${PENTESTAI_IP:-10.99.0.11}"
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  rustsploit:
+    build:
+      context: .
+      dockerfile: Docker/Dockerfile.rustsploit
+    image: openhack-rustsploit
+    container_name: openhack-rustsploit
+    networks:
+      openhack-net:
+        ipv4_address: "${RUSTSPLOIT_IP:-10.99.0.12}"
+    restart: unless-stopped
+    privileged: true
+    user: root
+
+  arcticfox:
+    build:
+      context: .
+      dockerfile: Docker/Dockerfile.arcticfox
+    image: openhack-arcticfox
+    container_name: openhack-arcticfox
+    networks:
+      openhack-net:
+        ipv4_address: "${ARCTICFOX_IP:-10.99.0.13}"
+    restart: unless-stopped
+
+  sysreptor:
+    image: ${SYSREPTOR_IMAGE:-syslifters/sysreptor:latest}
+    container_name: openhack-sysreptor
+    networks:
+      openhack-net:
+        ipv4_address: "${SYSREPTOR_IP:-10.99.0.14}"
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      # Refuse to start without an explicit strong secret — no insecure default.
+      - SECRET_KEY=${SYSREPTOR_SECRET:?SYSREPTOR_SECRET must be set to a strong random value (e.g. openssl rand -hex 32)}
+      - DATABASE_URL=sqlite:///db.sqlite3

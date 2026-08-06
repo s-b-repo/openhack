@@ -1,0 +1,20 @@
+{
+  "_comment": "Small warm-up engagement: 3 canned findings + 5 endpoint coverage cells. Every round the mock injects one new critical to keep the loop from prematurely converging.",
+  "findings": [
+    { "title": "Info: server header leaks nginx version", "severity": "info", "affected_component": "http://example.com/" },
+    { "title": "Medium: missing X-Frame-Options", "severity": "medium", "affected_component": "http://example.com/" },
+    { "title": "High: exposed .env file", "severity": "high", "cwe": "CWE-200", "affected_component": "http://example.com/.env" }
+  ],
+  "coverage": {
+    "endpoints": [
+      { "endpoint": "/", "method": "GET", "classes": [{ "id": "info-leak" }, { "id": "csrf" }] },
+      { "endpoint": "/login", "method": "POST", "classes": [{ "id": "auth-bypass" }, { "id": "sqli" }] },
+      { "endpoint": "/api/v1/users", "method": "GET", "classes": [{ "id": "info-leak" }] }
+    ]
+  },
+  "perRound": [
+    { "tokensIn": 400, "tokensOut": 250, "cost": 0.0015, "newCriticalOnFirstCall": true },
+    { "tokensIn": 350, "tokensOut": 220, "cost": 0.0012, "newCriticalOnFirstCall": true },
+    { "tokensIn": 300, "tokensOut": 200, "cost": 0.001, "newCriticalOnFirstCall": false }
+  ]
+}

@@ -1,0 +1,5 @@
+FROM syslifters/sysreptor:latest
+
+USER root
+
+EXPOSE 8000
