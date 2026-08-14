@@ -3,6 +3,11 @@ import { For, type JSX } from "solid-js"
 import { tint, useTheme } from "../context/theme"
 import { logo } from "../logo"
 
+// Widow palette — the OPENHACK wordmark renders red regardless of the active
+// theme (the left "OPEN" half a touch dimmer than the bright "HACK" half).
+const WIDOW_RED = RGBA.fromInts(220, 40, 45)
+const WIDOW_RED_DIM = RGBA.fromInts(150, 28, 32)
+
 export function Logo() {
   const { theme } = useTheme()
 
@@ -51,8 +56,8 @@ export function Logo() {
       <For each={logo.left}>
         {(line, index) => (
           <box flexDirection="row" gap={1}>
-            <box flexDirection="row">{renderLine(line, theme.textMuted, false)}</box>
-            <box flexDirection="row">{renderLine(logo.right[index()], theme.text, true)}</box>
+            <box flexDirection="row">{renderLine(line, WIDOW_RED_DIM, false)}</box>
+            <box flexDirection="row">{renderLine(logo.right[index()], WIDOW_RED, true)}</box>
           </box>
         )}
       </For>

@@ -7,8 +7,10 @@
 // findings get their score bumped, ones that consistently returned nothing
 // get dampened. Cross-run learning without any ML: just a rolling mean.
 //
-// File: `.openhack/graph-scores.json`. HMAC-signed via GraphStore so the file
-// is tamper-evident just like the graph and coverage stores.
+// File: `.openhack/graph-scores.<target>.json`. HMAC-signed via GraphStore so
+// the file is tamper-evident just like the graph and coverage stores. (Earlier
+// builds wrote `.openhack/graph-scores.json.<target>`, which read as a stray
+// file in the repo root; those are migrated on first read — see load().)
 //
 // Action kind = the ActionNode.agent field. That's the coarsest useful bucket
 // — "recon" wins its own reweight independently of "exploit-sqli" — while
@@ -47,11 +49,17 @@ export namespace Scores {
   }
 
   const DIR = ".openhack"
-  const FILE = "graph-scores.json"
+  const BASE = "graph-scores"
 
+  function safeTarget(target: string): string {
+    return target.replace(/[^a-zA-Z0-9.-]/g, "_")
+  }
   function fileFor(target: string): string {
-    const safe = target.replace(/[^a-zA-Z0-9.-]/g, "_")
-    return path.join(DIR, `${FILE}.${safe}`)
+    return path.join(DIR, `${BASE}.${safeTarget(target)}.json`)
+  }
+  // Legacy shape (`graph-scores.json.<target>`) — migrated on first read.
+  function legacyFileFor(target: string): string {
+    return path.join(DIR, `${BASE}.json.${safeTarget(target)}`)
   }
 
   function empty(target: string): Store {
@@ -65,6 +73,16 @@ export namespace Scores {
 
   export function load(target: string): Store {
     const f = fileFor(target)
+    if (!fs.existsSync(f)) {
+      // One-time migration from the old `graph-scores.json.<target>` name.
+      const legacy = legacyFileFor(target)
+      if (fs.existsSync(legacy)) {
+        try {
+          fs.mkdirSync(DIR, { recursive: true })
+          fs.renameSync(legacy, f)
+        } catch {}
+      }
+    }
     if (!fs.existsSync(f)) return empty(target)
     try {
       const raw = fs.readFileSync(f, "utf-8")

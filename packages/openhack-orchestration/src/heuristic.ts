@@ -12,6 +12,7 @@ import type {
 import { emptyUpdate } from "./types"
 import { AttackGraph } from "./graph"
 import { Scores } from "./scores"
+import { Checklist } from "../../openhack/src/checklist"
 
 /**
  * Deterministic, LLM-free controller. Purpose:
@@ -344,10 +345,9 @@ export namespace HeuristicController {
     try { scoreStore = Scores.load(target) } catch {}
     if (scoreStore) {
       for (const n of addNodes) {
-        if (n.kind === "action" || (n as ActionNode).agent !== undefined) {
-          const a = n as ActionNode
-          const prior = Scores.priorFor(scoreStore, a.agent)
-          if (prior !== 1.0) a.score = Math.round(a.score * prior * 100) / 100
+        if (AttackGraph.isAction(n)) {
+          const prior = Scores.priorFor(scoreStore, n.agent)
+          if (prior !== 1.0) n.score = Math.round(n.score * prior * 100) / 100
         }
       }
     }
@@ -391,11 +391,28 @@ export namespace HeuristicController {
     return fallback
   }
 
+  // Authoritative vuln-class category → specialist agent. Testing a class is
+  // exploit work; discovery/config classes go to recon.
+  const CATEGORY_AGENT: Record<Checklist.Category, string> = {
+    recon: "recon",
+    infra: "recon",
+    auth: "exploit",
+    "access-control": "exploit",
+    injection: "exploit",
+    logic: "exploit",
+    client: "exploit",
+    api: "exploit",
+    crypto: "exploit",
+  }
+
   function classifyGapAgent(g: CoverageGap): string {
+    // Prefer the checklist's own category metadata over ad-hoc substring guessing.
+    const cls = Checklist.get(g.classId)
+    if (cls && CATEGORY_AGENT[cls.category]) return CATEGORY_AGENT[cls.category]
+    // Fallback for unknown/legacy class ids not in the checklist.
     const name = (g.className + " " + g.classId).toLowerCase()
-    if (/recon|enum|discovery|dns|port|host|surface|version/.test(name)) return "recon"
-    if (/rce|injection|xss|csrf|ssrf|auth|bypass|deserial|upload|traversal|redir/.test(name)) return "exploit"
     if (/leak|expos|info|verbose|error|listing/.test(name)) return "post-exploit"
+    if (/recon|enum|discovery|dns|port|host|surface|version/.test(name)) return "recon"
     return "exploit"
   }
 

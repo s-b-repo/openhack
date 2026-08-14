@@ -194,6 +194,12 @@ function build(input: SplashWriterInput, kind: "entry" | "exit", ctx: Scrollback
       })
     }
 
+    // Widow accent above the mark (row 0 is free — mark occupies rows 1..3):
+    // white legs, red body. Fixed red/white so it reads the same on any theme.
+    push(lines, 0, 0, "╲", "#f0f0f0", undefined, TextAttributes.BOLD)
+    push(lines, 1, 0, "▟▙", "#ff3b3b", undefined, TextAttributes.BOLD)
+    push(lines, 3, 0, "╱", "#f0f0f0", undefined, TextAttributes.BOLD)
+
     push(lines, body_left, top, "OpenHack", right, undefined, TextAttributes.BOLD)
     if (input.detail) {
       push(

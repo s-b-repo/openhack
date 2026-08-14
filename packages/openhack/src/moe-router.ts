@@ -1,4 +1,5 @@
 import { GlobalConfig } from "./global-config"
+import { ModelCosts } from "./model-costs"
 import { loadJSON, saveJSON } from "./persist"
 
 export namespace MOERouter {
@@ -57,16 +58,9 @@ export namespace MOERouter {
   export function getStats(){const model=GlobalConfig.main();return{experts:EXPERTS.map(e=>({name:e.name,useCount:e.useCount,agent:e.targetAgent,model})),total:EXPERTS.reduce((s,e)=>s+e.useCount,0)}}
   export function getCostEstimate(prompt:string):{model:string;estimatedCost:string;cheapest:boolean}{
     const m=GlobalConfig.main()
-    const costs:Record<string,number>={
-      "deepseek/deepseek-v4":0.0001,"deepseek/deepseek-chat":0.0001,
-      "anthropic/claude-haiku-4-5":0.001,"anthropic/claude-sonnet-4":0.003,
-      "openai/gpt-4o":0.005,"openai/gpt-4o-mini":0.0005,
-      "google/gemini-2.5-flash":0.0005,"google/gemini-2.5-pro":0.003,
-    }
-    const rate=costs[m]||0.002
-    const tokens=prompt.length/4+500
-    const cost=(tokens/1000*rate).toFixed(4)
-    const cheapest=rate<=0.001
-    return{model:m,estimatedCost:`$${cost}`,cheapest}
+    // Shared rate table (model-costs.ts) — assume a small ~500-token reply for
+    // the hint, matching the previous behaviour.
+    const cost=ModelCosts.estimateUsd(m,prompt.length,500).toFixed(4)
+    return{model:m,estimatedCost:`$${cost}`,cheapest:ModelCosts.isCheap(m)}
   }
 }
