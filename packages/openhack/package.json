@@ -6,6 +6,7 @@
   "main": "src/index.ts",
   "scripts": {
     "test": "bun test test/",
+    "deception": "bun run src/deception-cli.ts",
     "refresh:knowledge": "bun run script/ingest-knowledge.ts"
   },
   "dependencies": {
