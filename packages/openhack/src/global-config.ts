@@ -78,7 +78,7 @@ export namespace GlobalConfig {
    */
   export function resolveForAgent(agent: string | undefined | null): string {
     if (activeConfig.custom) return activeConfig.custom
-    const explicit = agent && activeConfig.agent_tiers?.[agent]
+    const explicit = agent ? activeConfig.agent_tiers?.[agent] : undefined
     const tier: Tier = explicit ?? DEFAULT_AGENT_TIERS[agent ?? ""] ?? "main"
     return tierModel(tier)
   }

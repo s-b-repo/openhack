@@ -3,10 +3,10 @@ import { Schema } from "effect"
 import { logo as glyphs } from "./logo"
 
 const wordmark = [
-  `⠀                                ▄     `,
-  `█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█`,
-  `█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀`,
-  `▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀`,
+  `                                       `,
+  `█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █  █ █▀▀█ █▀▀▀ █ ▄▀`,
+  `█  █ █  █ █▀▀▀ █  █ █▀▀█ █▀▀█ █    █▀▄ `,
+  `▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀  ▀ ▀  ▀ ▀▀▀▀ ▀ ▀▄`,
 ]
 
 export class CancelledError extends Schema.TaggedErrorClass<CancelledError>()("UICancelledError", {}) {}
@@ -45,9 +45,28 @@ export function empty() {
   blank = true
 }
 
+// A compact static black-widow: red body, white legs, hanging from a thin
+// silk thread. `color=false` yields a plain (pipe-safe) version for non-TTY.
+function spider(pad = "", color = true): string[] {
+  const R = color ? "\x1b[38;5;196m" : "" // red body
+  const W = color ? "\x1b[97m" : "" // white legs
+  const D = color ? "\x1b[90m" : "" // dim thread
+  const X = color ? "\x1b[0m" : "" // reset
+  const p = `${pad}       `
+  return [
+    `${p}  ${D}│${X}`,
+    `${p}${W}\\${X}  ${R}▟█▙${X}  ${W}/${X}`,
+    `${p} ${W}\\${X}${R}▟███▙${X}${W}/${X}`,
+    `${p}${W}──${X}${R}██${D}▼${R}██${X}${W}──${X}`,
+    `${p} ${W}/${X}${R}▜███▛${X}${W}\\${X}`,
+    `${p}${W}/${X}  ${R}▜█▛${X}  ${W}\\${X}`,
+  ]
+}
+
 export function logo(pad?: string) {
   if (!process.stdout.isTTY && !process.stderr.isTTY) {
     const result = []
+    for (const row of spider(pad, false)) result.push(row, EOL)
     for (const row of wordmark) {
       if (pad) result.push(pad)
       result.push(row)
@@ -58,15 +77,16 @@ export function logo(pad?: string) {
 
   const result: string[] = []
   const reset = "\x1b[0m"
+  // Widow red — the "OPEN" half dim red, the "HACK" half bright red.
   const left = {
-    fg: "\x1b[90m",
-    shadow: "\x1b[38;5;235m",
-    bg: "\x1b[48;5;235m",
+    fg: "\x1b[38;5;124m",
+    shadow: "\x1b[38;5;52m",
+    bg: "\x1b[48;5;52m",
   }
   const right = {
-    fg: reset,
-    shadow: "\x1b[38;5;238m",
-    bg: "\x1b[48;5;238m",
+    fg: "\x1b[38;5;196m",
+    shadow: "\x1b[38;5;88m",
+    bg: "\x1b[48;5;88m",
   }
   const gap = " "
   const draw = (line: string, fg: string, shadow: string, bg: string) => {
@@ -92,6 +112,7 @@ export function logo(pad?: string) {
     }
     return parts.join("")
   }
+  for (const row of spider(pad, true)) result.push(row + EOL)
   glyphs.left.forEach((row, index) => {
     if (pad) result.push(pad)
     result.push(draw(row, left.fg, left.shadow, left.bg))

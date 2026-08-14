@@ -37,7 +37,12 @@ import {
   type FindingLike,
 } from "../../../../openhack-orchestration/src"
 
-export type LlmResult = { output: string; tokensIn: number; tokensOut: number; cost: number }
+// `ok:false` marks a run that failed to produce real work — a non-zero/killed
+// exit, an empty transcript, or a spawn failure. Callers (Automode.executeTask)
+// MUST treat these as failures instead of silently logging success. `error`
+// carries a short human reason. Absent `ok` means "assume success" for
+// backwards-compatible injected runners in tests.
+export type LlmResult = { output: string; tokensIn: number; tokensOut: number; cost: number; ok?: boolean; error?: string }
 export type LlmFn = (prompt: string) => Promise<LlmResult>
 /**
  * Opts a caller may pass to the factory instead of a bare agent string. Enables
@@ -124,17 +129,29 @@ export function makeSubprocessLlmFn(opts: { agent?: string; model?: string; cwd?
       child.stderr.on("data", (d) => { stderr += d.toString() })
       child.on("error", (e) => {
         if (timer) clearTimeout(timer)
-        resolve({ output: `[automode: failed to spawn run — ${e.message}. Set OPENHACK_RUN_CMD to override.]`, tokensIn: 0, tokensOut: 0, cost: 0 })
+        resolve({ output: `[automode: failed to spawn run — ${e.message}. Set OPENHACK_RUN_CMD to override.]`, tokensIn: 0, tokensOut: 0, cost: 0, ok: false, error: `spawn failed: ${e.message}` })
       })
       child.on("close", (code) => {
         if (timer) clearTimeout(timer)
         if (buf.trim()) consume(buf)
         const output = texts.join("\n").trim()
+        // A run only counts as real work when it exited cleanly AND produced
+        // assistant text. A non-zero/null exit (crash, ROE/spawn abort, or the
+        // timeout SIGKILL) or an empty transcript is a FAILURE — otherwise the
+        // loop records dead rounds as "successful" (the golecloud.co.za bug).
         if (code !== 0 && !output) {
-          resolve({ output: `[run exited ${code}] ${stderr.trim().slice(0, 800)}`, tokensIn, tokensOut, cost })
+          resolve({ output: `[run exited ${code}] ${stderr.trim().slice(0, 800)}`, tokensIn, tokensOut, cost, ok: false, error: `run exited ${code}` })
           return
         }
-        resolve({ output: output || stderr.trim(), tokensIn, tokensOut, cost })
+        const ok = code === 0 && output.length > 0
+        resolve({
+          output: output || stderr.trim(),
+          tokensIn,
+          tokensOut,
+          cost,
+          ok,
+          error: ok ? undefined : code !== 0 ? `run exited ${code}` : "empty transcript",
+        })
       })
     })
 }
@@ -147,6 +164,61 @@ export function makeSubprocessLlmFn(opts: { agent?: string; model?: string; cwd?
 export async function runCommandMacro(name: string, args = "", opts: { model?: string; timeoutMs?: number } = {}): Promise<LlmResult> {
   const fn = makeSubprocessLlmFn({ command: name, model: opts.model, timeoutMs: opts.timeoutMs ?? 30 * 60 * 1000 })
   return fn(args)
+}
+
+// Pull the first JSON object out of a model transcript, tolerating ```json
+// fences and surrounding prose. Returns null when nothing parses.
+export function extractJsonObject(text: string): any | null {
+  if (!text) return null
+  let t = text.trim()
+  const fence = t.match(/```(?:json)?\s*([\s\S]*?)```/i)
+  if (fence?.[1]) t = fence[1].trim()
+  const start = t.indexOf("{")
+  const end = t.lastIndexOf("}")
+  if (start < 0 || end <= start) return null
+  try {
+    return JSON.parse(t.slice(start, end + 1))
+  } catch {
+    return null
+  }
+}
+
+const GRAPH_JSON_INSTRUCTION =
+  `\n\n---\nReturn ONLY a single minified JSON object — no prose, no markdown, no code fences — ` +
+  `matching this shape (omit empty arrays):\n` +
+  `{"addActions":[{"objective":"...","agent":"recon|exploit|post-exploit|report|general",` +
+  `"prompt":"...","priority":1,"score":50,"classId":"...","endpointKey":"...","requires":["action:..."]}],` +
+  `"reprioritize":[{"id":"action:...","score":80}],"prune":["action:..."],"rationale":"one line"}`
+
+/**
+ * Build the LLM graph controller's `generate` callable from the subprocess `run`
+ * bridge. Previously `LoopOptions.graphGenerate` was never populated, so the
+ * "AI attack-graph controller" always degraded to the deterministic heuristic
+ * (`LlmController.make` returns `HeuristicController.run` when `generate` is
+ * absent). This wires a real, cheap model to it: it runs the controller model
+ * with a JSON-only instruction and parses the transcript into a `GeneratedUpdate`,
+ * returning null on any failure so the controller falls back cleanly.
+ */
+export function makeGraphGenerate(opts: { model?: string; log?: (m: string) => void } = {}): LlmController.Generate {
+  return async ({ system, user, timeoutMs }) => {
+    try {
+      const fn = makeSubprocessLlmFn({ agent: "general", model: opts.model, timeoutMs })
+      const res = await fn(`${system}\n\n${user}${GRAPH_JSON_INSTRUCTION}`)
+      if (res.ok === false) {
+        opts.log?.(`graphGenerate: controller run failed (${res.error ?? "unknown"}) → heuristic`)
+        return null
+      }
+      const parsed = extractJsonObject(res.output)
+      if (!parsed || typeof parsed !== "object") {
+        opts.log?.(`graphGenerate: no JSON object in controller output → heuristic`)
+        return null
+      }
+      return parsed as LlmController.GeneratedUpdate
+    } catch (e: any) {
+      opts.log?.(`graphGenerate: error (${e?.message ?? e}) → heuristic`)
+      return null
+    }
+  }
 }
 
 /** Available slash-command macros (from the cwd and the OpenHack repo) for `openhack cmd --list`. */
@@ -326,7 +398,19 @@ const INSTANCE_LENSES = [
  */
 export async function runOrchestrationLoop(target: string, opts: LoopOptions): Promise<Automode.AutomodeSession> {
   const log = opts.log ?? (() => {})
+  // Instance fan-out. An explicit `instances` (CLI/config) is honoured uniformly;
+  // otherwise a per-agent doctrine cuts the blind ×3 fan-out — high-volume, low-
+  // reasoning agents run once, judgment agents twice, deep-reasoning agents up to
+  // three — so we stop re-sending three full cold sessions for a port scan.
+  const explicitInstances = opts.instances != null
   const instances = Math.max(1, Math.min(6, opts.instances ?? 3))
+  const INSTANCE_DOCTRINE: Record<string, number> = {
+    recon: 1, osint: 1, report: 1, cleanup: 1,
+    council: 2, triage: 2, general: 2, defense: 2, "defense-review": 2, plan: 2, planner: 2,
+    exploit: 3, "post-exploit": 3, c2: 3,
+  }
+  const instancesForTask = (agent?: string): number =>
+    explicitInstances ? instances : Math.max(1, Math.min(instances, INSTANCE_DOCTRINE[agent ?? "general"] ?? instances))
   const parallel = opts.parallel !== false
   const council = opts.council !== false
   const plan = opts.plan !== false
@@ -344,7 +428,7 @@ export async function runOrchestrationLoop(target: string, opts: LoopOptions): P
 
   let prevTotal = loadFindings(target).length
   let prevHigh = countHighValue(loadFindings(target))
-  log(`Starting from ${prevTotal} findings (${prevHigh} high-value). instances=${instances} parallel=${parallel} plan=${plan} council=${council}`)
+  log(`Starting from ${prevTotal} findings (${prevHigh} high-value). instances=${explicitInstances ? String(instances) : `doctrine(≤${instances})`} parallel=${parallel} plan=${plan} council=${council}`)
 
   // Attack-graph controller — opt-in via LoopOptions.graph or `graph.controller_enabled`
   // in .openhack/openhack.jsonc. When active: round 1 uses the static batch (warm start
@@ -476,8 +560,8 @@ export async function runOrchestrationLoop(target: string, opts: LoopOptions): P
     const activePriorities = [...new Set(activeTasks.map((t) => t.priority ?? 3))].sort((a, b) => a - b)
     for (const pri of activePriorities) {
       const group = activeTasks.filter((t) => (t.priority ?? 3) === pri)
-      const jobs = group.flatMap((task) => Array.from({ length: instances }, (_, i) => ({ task, i })))
-      log(`  phase p${pri}: ${group.map((g) => g.id).join(", ")}${instances > 1 ? ` ×${instances}` : ""}`)
+      const jobs = group.flatMap((task) => Array.from({ length: instancesForTask(task.agent) }, (_, i) => ({ task, i })))
+      log(`  phase p${pri}: ${group.map((g) => `${g.id}×${instancesForTask(g.agent)}`).join(", ")}`)
       if (parallel) {
         await Promise.all(jobs.map((j) => runInstance(j.task, j.i).catch((e) => log(`    ! ${j.task.id}#${j.i + 1}: ${e?.message}`))))
       } else {
@@ -623,12 +707,25 @@ export async function runOrchestrationLoop(target: string, opts: LoopOptions): P
       let gapsLeft = 0
       try { gapsLeft = Coverage.gaps(Coverage.load(target)).length } catch {}
       let comboGapsLeft = 0
+      let universe = 0
       try {
         const r = Combinations.checklist(target)
         comboGapsLeft = r.methods.length + r.payloads.length + r.chains.length
+        universe = r.universeSize
       } catch {}
       if (frontLeft === 0 && gapsLeft === 0 && comboGapsLeft === 0) {
-        log("Terminating: attack graph frontier + coverage gaps + combinatorial checklist all empty.")
+        // All three axes empty is only a *clean* completion when there was real
+        // discovery. When nothing was ever found (0 findings, 0 coverage cells,
+        // 0-combo universe) the three counters are ALSO zero — that is a no-op
+        // engagement (scanners unreachable / ROE blocked / target down), not a
+        // finished assessment. Terminate distinctly so the summary stays honest.
+        const discovered = total > 0 || (cov?.cells ?? 0) > 0 || universe > 0
+        if (discovered) {
+          log("Terminating: attack graph frontier + coverage gaps + combinatorial checklist all empty.")
+        } else {
+          session.status = "no_discovery"
+          log("Terminating: no attack surface discovered (0 findings, 0 coverage cells). NOT a clean completion — check MCP scanners / ROE / target reachability.")
+        }
         break
       }
     }
@@ -674,7 +771,15 @@ export async function runOrchestrationLoop(target: string, opts: LoopOptions): P
   }
 
   session.endTime = new Date().toISOString()
-  if (session.status === "running") session.status = "completed"
+  if (session.status === "running") {
+    // Catch-all for the non-graph / adaptive-convergence exit paths: a run that
+    // discovered nothing (0 findings, 0 coverage cells) is `no_discovery`, not a
+    // clean `completed`. See the in-loop graph-frontier guard for the rationale.
+    const finalFindings = loadFindings(target)
+    let finalCells = 0
+    try { finalCells = Coverage.summary(Coverage.load(target)).cells } catch {}
+    session.status = finalFindings.length > 0 || finalCells > 0 ? "completed" : "no_discovery"
+  }
   Automode.saveSummary(session)
   Automode.saveLog(session)
   Automode.saveCheckpoint(session)
@@ -734,6 +839,11 @@ export async function runAutomodeCli(argv: any): Promise<void> {
     out(`Automode: executing ${target} (${argv.loop ? `loop, ≤${maxRounds} rounds` : "single round"})…`)
     const cfgInstances = Number(ConfigStore.get("automode.instances") ?? 0) || undefined
     const cfgCoverage = Number(ConfigStore.get("automode.coverage_target") ?? 0) || undefined
+    // Resolve the graph controller's model: explicit `graph.controller_model`,
+    // else the cheap "fast" tier (haiku) — a small model is plenty for the
+    // once-per-round GraphUpdate and keeps the controller call inexpensive.
+    let controllerModel: string | undefined
+    try { controllerModel = (ConfigStore.get("graph.controller_model") as unknown as string | undefined) || GlobalConfig.fast() } catch {}
     const session = await runOrchestrationLoop(target, {
       ids, maxRounds, model, outputDir: argv.output,
       costCap: argv["cost-cap"] ? Number(argv["cost-cap"]) : undefined,
@@ -744,6 +854,7 @@ export async function runAutomodeCli(argv: any): Promise<void> {
       plan: argv.plan !== false,
       graph: argv.graph === true ? true : argv.graph === false ? false : undefined,
       frontierK: argv["frontier-k"] != null ? Number(argv["frontier-k"]) : undefined,
+      graphGenerate: makeGraphGenerate({ model: controllerModel, log: out }),
       makeLlmFn, log: out,
     })
     const findings = loadFindings(target)

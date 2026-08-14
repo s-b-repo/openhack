@@ -1,5 +1,6 @@
 import * as fs from "node:fs"
 import * as path from "node:path"
+import { ModelCosts } from "../model-costs"
 
 export namespace Automode {
   export interface TaskSpec {
@@ -80,7 +81,11 @@ export namespace Automode {
     costConfig: CostConfig
     totalCost: number
     totalTokens: number
-    status: "running" | "paused" | "completed" | "failed" | "cost_limited"
+    // `no_discovery` = the loop ran to a natural stop but nothing was ever found
+    // (0 findings, 0 coverage cells). It is NOT a clean "completed" — it usually
+    // means the MCP scanners weren't reachable, the ROE blocked everything, or the
+    // target was unreachable. Kept distinct so summaries can't claim a clean run.
+    status: "running" | "paused" | "completed" | "failed" | "cost_limited" | "no_discovery"
   }
 
   const DEFAULT_COST_CONFIG: CostConfig = {
@@ -123,17 +128,9 @@ export namespace Automode {
   }
 
   export function estimateCost(task: TaskSpec, model: string): number {
-    const promptTokens = task.prompt.length / 4
-    const avgOutputTokens = 2000
-    const costPer1K: Record<string, number> = {
-      "anthropic/claude-haiku-4-5": 0.001,
-      "anthropic/claude-sonnet-4": 0.015,
-      "openai/gpt-4o": 0.010,
-      "google/gemini-2.5-flash": 0.0005,
-    }
-
-    const rate = costPer1K[model] || 0.01
-    return Math.round(((promptTokens + avgOutputTokens) / 1000) * rate * 100) / 100
+    // Shared rate table (see model-costs.ts) — one source of truth for the
+    // pre-flight confirm gate and the MoE cost hint.
+    return Math.round(ModelCosts.estimateUsd(model, task.prompt.length) * 100) / 100
   }
 
   export function createSession(
@@ -353,10 +350,16 @@ ${result.output}
     fs.writeFileSync(path.join(session.outputDir, "automode-summary.md"), summary, "utf-8")
   }
 
+  // Output shapes the subprocess runner emits when a run failed but resolved
+  // (rather than threw). Used as a fallback when a runner didn't set `ok`.
+  const FAILED_OUTPUT = /^\[(?:run exited|automode: failed)/
+
   export async function executeTask(
     task: TaskSpec,
     session: AutomodeSession,
-    llmFn?: (prompt: string) => Promise<{ output: string; tokensIn: number; tokensOut: number; cost: number }>,
+    llmFn?: (
+      prompt: string,
+    ) => Promise<{ output: string; tokensIn: number; tokensOut: number; cost: number; ok?: boolean; error?: string }>,
   ): Promise<TaskResult> {
     const start = Date.now()
     const startISO = new Date().toISOString()
@@ -375,6 +378,24 @@ ${result.output}
         }
       }
       const result = await llmFn(task.prompt)
+      // A resolved-but-failed run (non-zero/killed exit, empty transcript, spawn
+      // failure) must NOT be logged as success. Honor the runner's `ok` flag, and
+      // fall back to sniffing the error-shaped output for runners that don't set it.
+      const failed = result.ok === false || (result.ok === undefined && FAILED_OUTPUT.test(result.output))
+      if (failed) {
+        const errResult: TaskResult = {
+          id: task.id, prompt: task.prompt,
+          output: result.output,
+          error: result.error ?? "run failed (no output)",
+          startTime: startISO, endTime: new Date().toISOString(),
+          durationMs: Date.now() - start, success: false,
+          costActual: result.cost,
+          tokensUsed: { input: result.tokensIn, output: result.tokensOut },
+          save: task.save,
+        }
+        saveTaskResult(session, errResult)
+        return errResult
+      }
       // NB: do not accumulate totals here — saveTaskResult() is the single point
       // that adds cost/tokens to the session. checkCostLimit() below projects the
       // new total from the not-yet-added result, so pre-adding would double-count.

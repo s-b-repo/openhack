@@ -139,22 +139,21 @@ export namespace Orchestrator {
 
     const primary = preferredMCP || rule.primary
 
-    const primaryScore = getToolScore(primary, rule.tools[0])
-    if (primaryScore && primaryScore.score > 0) {
-      return {
-        mcp: primary,
-        tool: rule.tools[0],
-        category,
-        reason: `Routed to ${primary} (primary for ${category}, score: ${primaryScore.score})`,
-        fallback: rule.fallback || undefined,
-      }
-    }
+    // Use the best-scored tool for this category (learned via recordResult),
+    // falling back to the first declared tool when nothing has a score yet.
+    // Previously both branches returned rule.tools[0], so the learned scores
+    // never actually changed the selection.
+    const tool = suggestTool(category) ?? rule.tools[0]
+    const score = getToolScore(primary, tool)
+    const scored = score && (score.successes > 0 || score.failures > 0)
 
     return {
       mcp: primary,
-      tool: rule.tools[0],
+      tool,
       category,
-      reason: `Routed to ${primary} (primary for ${category})`,
+      reason: scored
+        ? `Routed to ${primary}·${tool} (learned score ${score!.score} for ${category})`
+        : `Routed to ${primary}·${tool} (primary for ${category})`,
       fallback: rule.fallback || undefined,
     }
   }

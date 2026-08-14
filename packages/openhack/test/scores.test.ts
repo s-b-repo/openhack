@@ -105,7 +105,7 @@ describe("Scores.save / load roundtrip", () => {
     Scores.record(s, { roundNumber: 1, dispatchedKinds: ["recon"], newFindings: 1, newHigh: 0, roundCostUsd: 0.1 })
     Scores.save(s)
     // Corrupt the body but keep the file structurally valid JSON.
-    const files = fs.readdirSync(".openhack").filter((f) => f.startsWith("graph-scores.json."))
+    const files = fs.readdirSync(".openhack").filter((f) => f.startsWith("graph-scores.") && f.endsWith(".json"))
     expect(files.length).toBe(1)
     const p = path.join(".openhack", files[0]!)
     const raw = JSON.parse(fs.readFileSync(p, "utf-8"))
