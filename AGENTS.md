@@ -106,7 +106,7 @@ the `tool.execute.before` hook — blocking with a tool error:
 
 Tool output is additionally scrubbed of secrets and scanned for findings, and
 the active scope/ROE is injected into the system prompt. Without `.openhack/`,
-none of this loads and OpenHack behaves like vanilla OpenCode.
+none of this loads and OpenHack behaves like vanilla OpenHack.
 
 ## Attack graph & tight loop (`openhack automode --loop --graph`)
 
@@ -129,7 +129,7 @@ Package: `packages/openhack-orchestration/` — `AttackGraph`, `GraphStore`, `Fr
 
 ## Loop performance harness (`bench:loop`)
 
-Two new package scripts on `packages/opencode/`:
+Two new package scripts on `packages/openhack-cli/`:
 
 - **`bench:loop`** — `bun run script/bench-attack-loop.ts`. Env-driven: `BENCH_TARGET`, `BENCH_ROUNDS`, `BENCH_MODE=graph|static`, `BENCH_FIXTURE=perf/fixtures/site1.json`, `BENCH_FRONTIER_K`, `BENCH_INSTANCES`. Runs `runOrchestrationLoop` end-to-end with a deterministic mock LLM factory (no cost, no network) and emits `METRIC name=value` lines: rounds-to-goal, wall-seconds, cost-to-first-critical, total cost/tokens, coverage %, final frontier size, controller p50, task-tool p50/p95, block ratio, termination reason.
 - **`bench:loop:compare`** — `bun run script/bench-attack-loop-compare.ts HEAD~1 HEAD`. Runs the bench in `git worktree` sandboxes for two refs (never touches the caller's tree), prints a Markdown delta table, exits 1 if any of `loop_total_cost_usd` / `loop_wall_seconds` / `loop_rounds_to_goal` regresses by > 15%.
@@ -142,7 +142,7 @@ The `openhack automode --loop` driver now unifies the static-orchestrator batch,
 
 ### 1. Universal LLM provider setup
 
-Auth is opencode-layer; every provider `@opencode-ai/core/models-dev` knows about is discoverable via env vars:
+Auth is openhack-layer; every provider `@openhack-ai/core/models-dev` knows about is discoverable via env vars:
 
 ```bash
 export DEEPSEEK_API_KEY=…                  # DeepSeek — cheapest
@@ -151,7 +151,7 @@ export GOOGLE_GENERATIVE_AI_API_KEY=…      # Gemini Flash / Pro
 export OPENAI_API_KEY=…                    # GPT-4o / o3
 ```
 
-Or, interactive: `opencode auth login <providerID>` writes `~/.local/share/opencode/auth.json`.
+Or, interactive: `openhack auth login <providerID>` writes `~/.local/share/openhack/auth.json`.
 
 Model selection (framework-layer):
 
@@ -160,7 +160,7 @@ openhack model --set deepseek/deepseek-v4  # writes .openhack/models.json
 openhack automode --target … --loop        # picks up the set model automatically
 ```
 
-**The `openhack model --set X` command now actually affects automode.** Previously it was a silent no-op — the automode CLI ignored `.openhack/models.json` and fell back to opencode's provider default. Fixed in `runAutomodeCli`: `argv.model` defaults from `GlobalConfig.main()` when unset.
+**The `openhack model --set X` command now actually affects automode.** Previously it was a silent no-op — the automode CLI ignored `.openhack/models.json` and fell back to openhack's provider default. Fixed in `runAutomodeCli`: `argv.model` defaults from `GlobalConfig.main()` when unset.
 
 **Per-agent tier resolution.** `GlobalConfig.resolveForAgent(agent)` picks a tier per dispatch:
 
@@ -179,7 +179,7 @@ The heuristic controller emits four new node kinds each round when their trigger
 
 | Node kind | Trigger | Dispatch |
 |---|---|---|
-| `command:council` ActionNode | `newFindings >= 2` this round | `/council` macro via `runCommandMacro` (source of truth = `.opencode/command/council.md`) |
+| `command:council` ActionNode | `newFindings >= 2` this round | `/council` macro via `runCommandMacro` (source of truth = `.openhack/command/council.md`) |
 | `command:triage` ActionNode | `coverageGaps > 20 && methodGaps > 5` | `/triage` macro |
 | `osint` ActionNode | round 1 only | `.openhack/agents/osint.md` (passive intel: CT logs, passive DNS, GitHub leaks — no direct probes) |
 | `command:cleanup` ActionNode | frontier + coverage + combos all empty | `/cleanup` macro (reverse-deploy order; verify each removal) |
@@ -188,7 +188,7 @@ Static-batch orchestrators (`packages/openhack/src/orchestrators.ts`) gained fou
 
 **`ActionNode.command` sentinel** — added on both `Automode.TaskSpec` and `ActionNode` types. When set, `runInstance` fires `run --command <name>` on the openhack subprocess so the macro file drives the protocol. When unset, the normal `--agent <agent>` path runs. This is what makes `/council`, `/triage`, and `/cleanup` first-class ActionNodes without any new dispatch layer — the plumbing already existed.
 
-**Council / Plan invocation** in the loop now prefers the macro over the inline `COUNCIL_PROMPT` / `PLAN_PROMPT` paraphrases, with graceful fallback when the macro isn't available. Any future edit to `.opencode/command/council.md` is picked up automatically — no more drift between the shell-run macro and the loop's paraphrase.
+**Council / Plan invocation** in the loop now prefers the macro over the inline `COUNCIL_PROMPT` / `PLAN_PROMPT` paraphrases, with graceful fallback when the macro isn't available. Any future edit to `.openhack/command/council.md` is picked up automatically — no more drift between the shell-run macro and the loop's paraphrase.
 
 ## ROE-control MCP (`packages/openhack-mcp-roe/`)
 

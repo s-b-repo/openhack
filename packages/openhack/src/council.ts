@@ -4,7 +4,7 @@
  * confidence-weighted majority and decides confirm / drop / ESCALATE. Keeping the
  * aggregation in code (not the model) makes the outcome reproducible and prevents
  * "blind consensus" — the well-known council failure where instances converge on the
- * same wrong answer. The macro (`.opencode/command/council.md`) runs the reviewers,
+ * same wrong answer. The macro (`.openhack/command/council.md`) runs the reviewers,
  * the cross-judge round, and feeds their verdicts here.
  */
 export namespace Council {

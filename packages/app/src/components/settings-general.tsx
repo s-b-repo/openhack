@@ -1,12 +1,12 @@
 import { Component, Show, createMemo, createResource, onMount, type JSX } from "solid-js"
-import { Button } from "@opencode-ai/ui/button"
-import { Icon } from "@opencode-ai/ui/icon"
-import { Select } from "@opencode-ai/ui/select"
-import { Switch } from "@opencode-ai/ui/switch"
-import { TextField } from "@opencode-ai/ui/text-field"
-import { Tooltip } from "@opencode-ai/ui/tooltip"
-import { useTheme, type ColorScheme } from "@opencode-ai/ui/theme/context"
-import { useDialog } from "@opencode-ai/ui/context/dialog"
+import { Button } from "@openhack-ai/ui/button"
+import { Icon } from "@openhack-ai/ui/icon"
+import { Select } from "@openhack-ai/ui/select"
+import { Switch } from "@openhack-ai/ui/switch"
+import { TextField } from "@openhack-ai/ui/text-field"
+import { Tooltip } from "@openhack-ai/ui/tooltip"
+import { useTheme, type ColorScheme } from "@openhack-ai/ui/theme/context"
+import { useDialog } from "@openhack-ai/ui/context/dialog"
 import { useParams } from "@solidjs/router"
 import { useLanguage } from "@/context/language"
 import { usePermission } from "@/context/permission"
@@ -457,7 +457,7 @@ export const SettingsGeneral: Component = () => {
           description={
             <>
               {language.t("settings.general.row.theme.description")}{" "}
-              <Link href="https://opencode.ai/docs/themes/">{language.t("common.learnMore")}</Link>
+              <Link href="https://cybersec.org.za/docs/themes/">{language.t("common.learnMore")}</Link>
             </>
           }
         >

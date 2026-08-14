@@ -1,6 +1,6 @@
-# OpenCode Desktop
+# OpenHack Desktop
 
-The OpenCode Desktop app, built with Electron.
+The OpenHack Desktop app, built with Electron.
 
 ## Development
 

@@ -2,7 +2,7 @@ import { describe, expect, test, beforeEach, afterEach } from "bun:test"
 import * as fs from "node:fs"
 import * as path from "node:path"
 import * as os from "node:os"
-import { extractJsonObject } from "../../opencode/src/cli/cmd/openhack.automode"
+import { extractJsonObject } from "../../openhack-cli/src/cli/cmd/openhack.automode"
 import { Orchestrator } from "../src/orchestrator"
 
 // C1 — the graph controller's JSON extraction (the parse step that turns a model

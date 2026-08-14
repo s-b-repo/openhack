@@ -1,19 +1,19 @@
 import type { APIEvent } from "@solidjs/start/server"
-import { and, Database, eq, isNull, lt, or, sql } from "@opencode-ai/console-core/drizzle/index.js"
-import { KeyTable } from "@opencode-ai/console-core/schema/key.sql.js"
-import { BillingTable, LiteTable, SubscriptionTable, UsageTable } from "@opencode-ai/console-core/schema/billing.sql.js"
-import { centsToMicroCents } from "@opencode-ai/console-core/util/price.js"
-import { getMonthlyBounds, getWeekBounds } from "@opencode-ai/console-core/util/date.js"
-import { Identifier } from "@opencode-ai/console-core/identifier.js"
-import { Billing } from "@opencode-ai/console-core/billing.js"
-import { Actor } from "@opencode-ai/console-core/actor.js"
-import { WorkspaceTable } from "@opencode-ai/console-core/schema/workspace.sql.js"
-import { ZenData } from "@opencode-ai/console-core/model.js"
-import { Subscription } from "@opencode-ai/console-core/subscription.js"
-import { BlackData } from "@opencode-ai/console-core/black.js"
-import { UserTable } from "@opencode-ai/console-core/schema/user.sql.js"
-import { ModelTable } from "@opencode-ai/console-core/schema/model.sql.js"
-import { ProviderTable } from "@opencode-ai/console-core/schema/provider.sql.js"
+import { and, Database, eq, isNull, lt, or, sql } from "@openhack-ai/console-core/drizzle/index.js"
+import { KeyTable } from "@openhack-ai/console-core/schema/key.sql.js"
+import { BillingTable, LiteTable, SubscriptionTable, UsageTable } from "@openhack-ai/console-core/schema/billing.sql.js"
+import { centsToMicroCents } from "@openhack-ai/console-core/util/price.js"
+import { getMonthlyBounds, getWeekBounds } from "@openhack-ai/console-core/util/date.js"
+import { Identifier } from "@openhack-ai/console-core/identifier.js"
+import { Billing } from "@openhack-ai/console-core/billing.js"
+import { Actor } from "@openhack-ai/console-core/actor.js"
+import { WorkspaceTable } from "@openhack-ai/console-core/schema/workspace.sql.js"
+import { ZenData } from "@openhack-ai/console-core/model.js"
+import { Subscription } from "@openhack-ai/console-core/subscription.js"
+import { BlackData } from "@openhack-ai/console-core/black.js"
+import { UserTable } from "@openhack-ai/console-core/schema/user.sql.js"
+import { ModelTable } from "@openhack-ai/console-core/schema/model.sql.js"
+import { ProviderTable } from "@openhack-ai/console-core/schema/provider.sql.js"
 import { logger } from "./logger"
 import {
   AuthError,
@@ -42,15 +42,15 @@ import { createRateLimiter as createIpRateLimiter } from "./ipRateLimiter"
 import { createRateLimiter as createKeyRateLimiter } from "./keyRateLimiter"
 import { createTrialLimiter } from "./trialLimiter"
 import { createStickyTracker } from "./stickyProviderTracker"
-import { LiteData } from "@opencode-ai/console-core/lite.js"
-import { Resource } from "@opencode-ai/console-resource"
+import { LiteData } from "@openhack-ai/console-core/lite.js"
+import { Resource } from "@openhack-ai/console-resource"
 import { i18n, type Key } from "~/i18n"
 import { localeFromRequest } from "~/lib/language"
 import { createModelTpmLimiter } from "./modelTpmLimiter"
 import { createModelTpsLimiter } from "./modelTpsLimiter"
 import { createProviderBudgetTracker } from "./providerBudgetTracker"
 import { accumulateUsage, HOT_WORKSPACES } from "./usageBatcher"
-import { Workspace } from "@opencode-ai/console-core/workspace.js"
+import { Workspace } from "@openhack-ai/console-core/workspace.js"
 import { countryFromRequest } from "~/lib/request-country"
 
 type ZenData = Awaited<ReturnType<typeof ZenData.list>>
@@ -105,10 +105,10 @@ export async function handler(
     const ip = rawIp.includes(":") ? rawIp.split(":").slice(0, 4).join(":") : rawIp
     const rawZenApiKey = opts.parseApiKey(input.request.headers)
     const zenApiKey = rawZenApiKey === "public" ? undefined : rawZenApiKey
-    const sessionId = input.request.headers.get("x-opencode-session") ?? ""
-    const requestId = input.request.headers.get("x-opencode-request") ?? ""
-    const ocClient = input.request.headers.get("x-opencode-client") ?? ""
-    const projectId = input.request.headers.get("x-opencode-project") ?? ""
+    const sessionId = input.request.headers.get("x-openhack-session") ?? ""
+    const requestId = input.request.headers.get("x-openhack-request") ?? ""
+    const ocClient = input.request.headers.get("x-openhack-client") ?? ""
+    const projectId = input.request.headers.get("x-openhack-project") ?? ""
     const userAgent = input.request.headers.get("user-agent") ?? ""
     logger.metric({
       is_stream: isStream,
@@ -141,7 +141,7 @@ export async function handler(
       if (!allowedRegions?.includes("unavailable"))
         throw new RegionError(
           t("zen.api.error.regionNotAllowed", {
-            consoleGoUrl: `https://opencode.ai/workspace/${authInfo.workspaceID}/go`,
+            consoleGoUrl: `https://cybersec.org.za/workspace/${authInfo.workspaceID}/go`,
           }),
         )
     }
@@ -230,10 +230,10 @@ export async function handler(
           })
           headers.delete("host")
           headers.delete("content-length")
-          headers.delete("x-opencode-request")
-          headers.delete("x-opencode-session")
-          headers.delete("x-opencode-project")
-          headers.delete("x-opencode-client")
+          headers.delete("x-openhack-request")
+          headers.delete("x-openhack-session")
+          headers.delete("x-openhack-project")
+          headers.delete("x-openhack-client")
           return headers
         })(),
         body: reqBody,
@@ -243,8 +243,8 @@ export async function handler(
       })
 
       if (providerInfo.id.startsWith("console.") || providerInfo.id.startsWith("console-go.")) {
-        const resEndpointId = res.headers.get("x-opencode-endpoint-id")
-        const resEndpointModelId = res.headers.get("x-opencode-upstream-model-id")
+        const resEndpointId = res.headers.get("x-openhack-endpoint-id")
+        const resEndpointModelId = res.headers.get("x-openhack-upstream-model-id")
         if (resEndpointId && resEndpointModelId)
           logger.metric({
             provider: resEndpointId,
@@ -544,7 +544,7 @@ export async function handler(
       throw new ModelError(
         `${t("zen.api.error.trialEnded", {
           model: modelData.name,
-          link: "https://opencode.ai/go",
+          link: "https://cybersec.org.za/go",
         })}`,
       )
 
@@ -867,7 +867,7 @@ export async function handler(
     // Validate lite subscription billing
     if (opts.modelList === "lite" && authInfo.billing.lite && authInfo.lite) {
       try {
-        const consoleGoUrl = `https://opencode.ai/workspace/${authInfo.workspaceID}/go`
+        const consoleGoUrl = `https://cybersec.org.za/workspace/${authInfo.workspaceID}/go`
         const sub = authInfo.lite
         const liteData = LiteData.getLimits()
 
@@ -938,8 +938,8 @@ export async function handler(
 
     // Validate pay as you go billing
     const billing = authInfo.billing
-    const billingUrl = `https://opencode.ai/workspace/${authInfo.workspaceID}/billing`
-    const membersUrl = `https://opencode.ai/workspace/${authInfo.workspaceID}/members`
+    const billingUrl = `https://cybersec.org.za/workspace/${authInfo.workspaceID}/billing`
+    const membersUrl = `https://cybersec.org.za/workspace/${authInfo.workspaceID}/members`
     if (!billing.paymentMethodID && billing.balance <= 0)
       throw new CreditsError(t("zen.api.error.noPaymentMethod", { billingUrl }))
     if (billing.balance <= 0) throw new CreditsError(t("zen.api.error.insufficientBalance", { billingUrl }))

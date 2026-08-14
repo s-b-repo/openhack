@@ -20,7 +20,7 @@ ts-dist
 /result
 refs
 Session.vim
-/opencode.json
+/openhack.json
 a.out
 target
 .scripts
@@ -31,14 +31,24 @@ target
 vendor/
 
 # Local dev files
-opencode-dev
+openhack-dev
 UPCOMING_CHANGELOG.md
 logs/
 *.bun-build
 tsconfig.tsbuildinfo
 
-# OpenHack per-engagement runtime state — keep only the config template and
-# agent definitions; never commit findings, logs, secrets, ROE, or scope data.
+# OpenHack per-engagement runtime state — keep only the config template, the
+# agent/command/skill definitions, and dev tooling; never commit findings, logs,
+# secrets, ROE, or scope data.
 .openhack/*
 !.openhack/openhack.jsonc
 !.openhack/agents/
+!.openhack/agent/
+!.openhack/command/
+!.openhack/skills/
+!.openhack/glossary/
+!.openhack/themes/
+!.openhack/plugins/
+!.openhack/tool/
+!.openhack/tui.json
+!.openhack/env.d.ts

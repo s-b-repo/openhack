@@ -15,7 +15,7 @@ export namespace Automode {
      * Slash-command macro name (e.g. "council", "triage", "plan"). When set,
      * the loop dispatches this task via `runCommandMacro(command, prompt)`
      * instead of the agent path — so the single source of truth for the
-     * protocol is `.opencode/command/<command>.md`.
+     * protocol is `.openhack/command/<command>.md`.
      *
      * Consumed one level up in `runInstance`; `executeTask` itself doesn't
      * read this field (the dispatch decision happens at the CLI boundary).

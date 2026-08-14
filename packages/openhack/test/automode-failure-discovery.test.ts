@@ -3,8 +3,8 @@ import * as fs from "node:fs"
 import * as path from "node:path"
 import * as os from "node:os"
 import { Automode } from "../src/automode"
-import { runOrchestrationLoop } from "../../opencode/src/cli/cmd/openhack.automode"
-import type { LlmFactory, LlmFn } from "../../opencode/src/cli/cmd/openhack.automode"
+import { runOrchestrationLoop } from "../../openhack-cli/src/cli/cmd/openhack.automode"
+import type { LlmFactory, LlmFn } from "../../openhack-cli/src/cli/cmd/openhack.automode"
 import { Findings } from "../src/findings"
 
 // Regression coverage for the two correctness fixes:

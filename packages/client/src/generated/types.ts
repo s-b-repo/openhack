@@ -1,4 +1,4 @@
-import type { OpenCodeEventEncoded } from "@opencode-ai/protocol/groups/event"
+import type { OpenHackEventEncoded } from "@openhack-ai/protocol/groups/event"
 
 export type JsonValue =
   | null
@@ -2538,7 +2538,7 @@ export type SkillsListOutput = {
   }>
 }
 
-export type EventsSubscribeOutput = OpenCodeEventEncoded
+export type EventsSubscribeOutput = OpenHackEventEncoded
 
 export type PtysListInput = {
   readonly location?: {

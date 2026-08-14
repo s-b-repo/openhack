@@ -253,7 +253,7 @@ printf "${BLUE}║${NC} %-12s → %-30s ${BLUE}║${NC}\n" "arcticfox" "${IP_BAS
 printf "${BLUE}║${NC} %-12s → %-30s ${BLUE}║${NC}\n" "sysreptor" "localhost:8000"
 bold "╚══════════════════════════════════════════════╝"
 echo ""
-info "Run OpenHack: cd $OPENHACK_DIR && bun run packages/opencode/src/index.ts"
+info "Run OpenHack: cd $OPENHACK_DIR && bun run packages/openhack-cli/src/index.ts"
 info "Status:      docker ps --filter name=openhack"
 info "Stop:        docker stop openhack-hexstrike openhack-pentestai openhack-rustsploit openhack-arcticfox openhack-sysreptor"
 info "Start:       docker start openhack-hexstrike openhack-pentestai openhack-rustsploit openhack-arcticfox openhack-sysreptor"

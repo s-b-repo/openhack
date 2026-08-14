@@ -163,7 +163,7 @@ export interface RoundDelta {
 }
 
 /** Minimal shape of `Combinations.CombinationReport` — mirrored here so this
- *  package doesn't have to import from `@opencode-ai/openhack`. */
+ *  package doesn't have to import from `@openhack-ai/openhack`. */
 export interface CombinationGapsLike {
   methods: Array<{ endpoint: string; testedMethods: string[]; missingMethods: string[] }>
   payloads: Array<{

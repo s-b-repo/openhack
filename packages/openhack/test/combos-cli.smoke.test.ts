@@ -40,13 +40,13 @@ afterEach(() => {
 function runCli(args: string[]) {
   // Invoke the openhack CLI's TypeScript entry directly. We call the openhack.ts
   // subcommand file via a small runner script — but a cleaner approach is to
-  // point at the opencode/src entry. Since that has a heavy dep graph, we take
+  // point at the openhack/src entry. Since that has a heavy dep graph, we take
   // the pragmatic path: invoke the standalone openhack.ts via bun with a small
   // wrapper.
   const wrapperPath = path.join(scratch, "cli-wrapper.ts")
   fs.writeFileSync(wrapperPath, `
 import yargs from "yargs"
-import { OpenHackCommand } from "${path.join(repoRoot, "packages/opencode/src/cli/cmd/openhack.ts").replace(/\\/g, "/")}"
+import { OpenHackCommand } from "${path.join(repoRoot, "packages/openhack-cli/src/cli/cmd/openhack.ts").replace(/\\/g, "/")}"
 const y: any = yargs(process.argv.slice(2))
 if (OpenHackCommand.builder) OpenHackCommand.builder(y)
 await y.parseAsync()

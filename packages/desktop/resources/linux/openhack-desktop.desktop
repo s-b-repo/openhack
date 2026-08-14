@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=OpenHack
+Exec=/opt/OpenHack/ai.openhack.desktop %U
+Terminal=false
+Type=Application
+Icon=ai.openhack.desktop
+StartupWMClass=ai.openhack.desktop
+NoDisplay=true
+Comment=Open source AI coding agent
+Categories=Development;
