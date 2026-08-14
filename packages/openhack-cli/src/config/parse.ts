@@ -85,6 +85,7 @@ const OPENHACK_ENGINE_KEYS = new Set([
   "round_budget",
   "shell",
   "tool_presets",
+  "deception",
 ])
 
 function topLevelExtraKeys(schema: EffectSchema.Top, data: unknown) {

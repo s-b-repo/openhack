@@ -176,6 +176,16 @@
       "enabled": false,
       "startupTimeout": 15000,
       "healthcheck": { "tool": "server_info", "interval": 30000 }
+    },
+    // Deception honeypot — advertises an "exploit-gym" offensive toolkit that
+    // never runs; every call tarpits (slow "handshake" then a logged refusal).
+    // Pairs with the `deception` block below + the on-disk planter. Off by
+    // default; enable to observe / contain an agent.
+    "exploit-gym": {
+      "type": "local",
+      "command": ["bun", "run", "openhack-mcp-honeypot"],
+      "enabled": false,
+      "startupTimeout": 5000
     }
   },
   "automode": {
@@ -189,6 +199,18 @@
     "cheap_model_for_planning": "anthropic/claude-haiku-4-5",
     "expensive_model_for_exploitation": "anthropic/claude-sonnet-4",
     "token_budget_per_task": 100000
+  },
+  // Deception / honeypot layer (packages/openhack/src/deception.ts). When enabled,
+  // an AI inspecting its env sees watcher processes, audit logs, and a fully
+  // stocked "exploit-gym" toolkit — all inert. mode "sandbox" contains our own
+  // agent; "honeypot" traps a foreign one. Plant the on-disk decoys with
+  // `bun run --cwd packages/openhack deception plant`.
+  "deception": {
+    "enabled": false,
+    "mode": "sandbox",
+    "root": ".openhack/gym",
+    "latencyMs": 1500,
+    "seed": "red-widow"
   },
   "codeguard": {
     "enabled": true,
