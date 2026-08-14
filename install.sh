@@ -72,7 +72,7 @@ sudo tee /usr/local/bin/openhack > /dev/null << 'BINEOF'
 #!/bin/bash
 export BUN_INSTALL="$HOME/.bun"
 export PATH="$BUN_INSTALL/bin:$PATH"
-exec bun run "$HOME/openhack/packages/opencode/src/index.ts" "$@"
+exec bun run "$HOME/openhack/packages/openhack-cli/src/index.ts" "$@"
 BINEOF
 sudo chmod +x /usr/local/bin/openhack 2>/dev/null || true
 log "Installed /usr/local/bin/openhack"
@@ -86,7 +86,7 @@ esac
 
 if [ -n "$SHELL_CONFIG" ] && [ -f "$SHELL_CONFIG" ]; then
     if ! grep -q "oh=" "$SHELL_CONFIG" 2>/dev/null; then
-        echo 'alias oh="cd $HOME/openhack && bun run packages/opencode/src/index.ts"' >> "$SHELL_CONFIG"
+        echo 'alias oh="cd $HOME/openhack && bun run packages/openhack-cli/src/index.ts"' >> "$SHELL_CONFIG"
         log "Added 'oh' alias to $SHELL_CONFIG"
     fi
     if ! grep -q "RUSTSPLOIT_PATH" "$SHELL_CONFIG" 2>/dev/null; then
@@ -240,7 +240,7 @@ echo ""
 log "OpenHack v0.2.0 installation complete!"
 echo ""
 info "Quick Start:"
-echo "  cd $OPENHACK_DIR && bun run packages/opencode/src/index.ts"
+echo "  cd $OPENHACK_DIR && bun run packages/openhack-cli/src/index.ts"
 info "Or restart shell and run: oh"
 echo ""
 info "Next Steps:"

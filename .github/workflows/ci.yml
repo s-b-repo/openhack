@@ -6,9 +6,9 @@ on:
     paths:
       - 'packages/openhack/**'
       - 'packages/openhack-sysreptor/**'
-      - 'packages/opencode/src/plugin/**'
-      - 'packages/opencode/src/cli/cmd/openhack.ts'
-      - 'packages/opencode/src/tool/shell.ts'
+      - 'packages/openhack-cli/src/plugin/**'
+      - 'packages/openhack-cli/src/cli/cmd/openhack.ts'
+      - 'packages/openhack-cli/src/tool/shell.ts'
   pull_request:
     branches: [main, dev]
 

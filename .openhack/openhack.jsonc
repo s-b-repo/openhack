@@ -1,5 +1,5 @@
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://cybersec.org.za/config.json",
   "provider": {},
   "permission": {},
   "scope": {
@@ -306,5 +306,19 @@
       },
       "tool_cap": 10
     }
+  },
+  "references": {
+    "effect": {
+      "repository": "github.com/Effect-TS/effect-smol",
+      "description": "Use for Effect v4 and effect-smol implementation details"
+    },
+    "openhack-local": {
+      "path": "~/.local/share/openhack",
+      "description": "Contains openhack logs and data"
+    }
+  },
+  "tools": {
+    "github-triage": false,
+    "github-pr-search": false
   }
 }

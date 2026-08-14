@@ -28,7 +28,7 @@ export namespace Orchestrators {
     /**
      * Optional slash-command macro to dispatch instead of the agent path.
      * When set, `runInstance` fires `run --command <name>` so the
-     * `.opencode/command/<name>.md` protocol is the single source of truth.
+     * `.openhack/command/<name>.md` protocol is the single source of truth.
      * Used for orchestrators that reuse an existing macro (council / triage
      * / cleanup) — the doctrine still lives in `withDoctrine()` on the
      * `instruction` field, but macro dispatch renders the actual protocol.

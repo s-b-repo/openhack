@@ -6,8 +6,8 @@ import type { Accessor } from "solid-js"
 import { selectProviderCatalog } from "./provider-catalog"
 
 export const popularProviders = [
-  "opencode",
-  "opencode-go",
+  "openhack",
+  "openhack-go",
   "anthropic",
   "github-copilot",
   "openai",
@@ -63,7 +63,7 @@ export function useProviders(directory?: Accessor<string | undefined>) {
           providers().all,
           ([id]) =>
             connected.has(id) &&
-            (id !== "opencode" || Object.values(providers().all.get(id)?.models ?? {}).some((m) => m.cost?.input)),
+            (id !== "openhack" || Object.values(providers().all.get(id)?.models ?? {}).some((m) => m.cost?.input)),
         ),
       ]
     },

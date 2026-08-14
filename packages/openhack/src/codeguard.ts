@@ -441,7 +441,7 @@ export namespace Codeguard {
     return null
   }
 
-  /** First file path referenced by a patch (opencode `*** ... File:` or unified `+++ b/`). */
+  /** First file path referenced by a patch (openhack `*** ... File:` or unified `+++ b/`). */
   function patchPrimaryPath(patch: string): string {
     const oh = patch.match(/\*\*\*\s+(?:Add|Update|Delete|Move)\s+File:\s*(.+)/i)
     if (oh) return oh[1].trim()

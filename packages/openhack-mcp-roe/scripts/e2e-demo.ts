@@ -177,10 +177,10 @@ async function main(): Promise<void> {
   // ─── round-trip through the openhack CLI ───────────────────────────────
   step("Verifying through the openhack CLI (`openhack roe`)")
   {
-    const opencodeRoot = path.join(args.engagementDir, "packages", "opencode")
-    const cliScript = path.join(opencodeRoot, "src", "index.ts")
+    const openhackRoot = path.join(args.engagementDir, "packages", "openhack")
+    const cliScript = path.join(openhackRoot, "src", "index.ts")
     if (!fs.existsSync(cliScript)) {
-      info(`skipping (opencode entry not found at ${cliScript})`)
+      info(`skipping (openhack entry not found at ${cliScript})`)
     } else {
       const r = spawnSync("bun", ["run", cliScript, "openhack", "roe"], { cwd: args.engagementDir, encoding: "utf-8" })
       if (r.status === 0 && /SIGNED/i.test(r.stdout)) {

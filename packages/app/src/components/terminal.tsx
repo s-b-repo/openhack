@@ -1,7 +1,7 @@
-import { withAlpha } from "@opencode-ai/ui/theme/color"
-import { useTheme } from "@opencode-ai/ui/theme/context"
-import { resolveThemeVariant } from "@opencode-ai/ui/theme/resolve"
-import type { HexColor } from "@opencode-ai/ui/theme/types"
+import { withAlpha } from "@openhack-ai/ui/theme/color"
+import { useTheme } from "@openhack-ai/ui/theme/context"
+import { resolveThemeVariant } from "@openhack-ai/ui/theme/resolve"
+import type { HexColor } from "@openhack-ai/ui/theme/types"
 import { showToast } from "@/utils/toast"
 import type { FitAddon, Ghostty, Terminal as Term } from "ghostty-web"
 import { type ComponentProps, createEffect, createMemo, onCleanup, onMount, splitProps } from "solid-js"
@@ -166,7 +166,7 @@ export const Terminal = (props: TerminalProps) => {
   const client = sdk().client
   const url = sdk().url
   const auth = connection.http
-  const username = auth?.username ?? "opencode"
+  const username = auth?.username ?? "openhack"
   const password = auth?.password ?? ""
   const authToken = connection.type === "http" ? connection.authToken : false
   const sameOrigin = new URL(url, location.href).origin === location.origin
@@ -487,7 +487,7 @@ export const Terminal = (props: TerminalProps) => {
             { ptyID: id, directory },
             {
               throwOnError: false,
-              headers: { "x-opencode-ticket": "1" },
+              headers: { "x-openhack-ticket": "1" },
             },
           )
           .catch((err: unknown) => {

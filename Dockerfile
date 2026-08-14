@@ -50,4 +50,4 @@ COPY .openhack/openhack.jsonc /root/.config/openhack/openhack.json
 
 ENV PATH="/opt/openhack/node_modules/.bin:${PATH}"
 
-ENTRYPOINT ["bun", "run", "/opt/openhack/packages/opencode/src/index.ts"]
+ENTRYPOINT ["bun", "run", "/opt/openhack/packages/openhack-cli/src/index.ts"]

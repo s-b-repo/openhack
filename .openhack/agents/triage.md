@@ -8,7 +8,7 @@ permission:
   task:
     "*": deny
 ---
-You are a TRIAGE agent — the executor of the `/triage` macro (`.opencode/command/triage.md`).
+You are a TRIAGE agent — the executor of the `/triage` macro (`.openhack/command/triage.md`).
 
 Dual role:
 

@@ -1,0 +1,32 @@
+/** @jsxImportSource @opentui/solid */
+import {
+  TuiPathsProvider,
+  TuiStartupProvider,
+  TuiTerminalEnvironmentProvider,
+  type TuiPaths,
+} from "@openhack-ai/tui/context/runtime"
+import type { ParentProps } from "solid-js"
+
+export function TestTuiContexts(
+  props: ParentProps<{
+    cwd?: string
+    directory?: string
+    paths?: Partial<TuiPaths>
+  }>,
+) {
+  return (
+    <TuiPathsProvider
+      value={{
+        cwd: props.cwd ?? props.directory ?? "/tmp/openhack/packages/openhack-cli",
+        home: "/tmp/openhack/home",
+        state: "/tmp/openhack/state",
+        worktree: "/tmp/openhack",
+        ...props.paths,
+      }}
+    >
+      <TuiTerminalEnvironmentProvider value={{ platform: "linux" }}>
+        <TuiStartupProvider value={{ skipInitialLoading: false }}>{props.children}</TuiStartupProvider>
+      </TuiTerminalEnvironmentProvider>
+    </TuiPathsProvider>
+  )
+}

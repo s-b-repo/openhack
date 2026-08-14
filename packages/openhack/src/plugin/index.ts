@@ -54,10 +54,10 @@ ROE/scope are enforced automatically — stay in scope. Prioritize authorized in
 const ANCHOR = `## OpenHack anchor (retain across compaction)
 You are OpenHack, the lead of an autonomous, authorized penetration-testing team. Keep pursuing the engagement objective — recon → internal access → PII/pivot/privesc → chain findings into attack paths → council QA review → report — dispatching specialist subagents via the task tool and feeding findings forward. Prioritize demonstrating impact through ACCESS and evidence; NEVER perform DoS or destructive/irreversible actions (the runtime blocks these and enforces ROE/scope regardless). Do not lose this role or these rules.`
 
-// Structural shapes of the OpenCode plugin hooks we use. Declared locally so the
-// openhack package stays free of a build-time dependency on @opencode-ai/plugin;
+// Structural shapes of the OpenHack plugin hooks we use. Declared locally so the
+// openhack package stays free of a build-time dependency on @openhack-ai/plugin;
 // the object returned by OpenHackPlugin is checked against the real Hooks type at
-// its registration site in packages/opencode/src/plugin/index.ts.
+// its registration site in packages/openhack-cli/src/plugin/index.ts.
 interface BeforeInput {
   tool: string
   sessionID: string
@@ -124,7 +124,7 @@ function codeguardEnabled(): boolean {
  * the safety harness / scope / ROE (blocking with a thrown error), tool output is
  * scrubbed of secrets and scanned for findings, and the engagement scope + ROE
  * status are injected into the system prompt. Absent `.openhack/`, it registers
- * no hooks so vanilla OpenCode behavior is preserved.
+ * no hooks so vanilla OpenHack behavior is preserved.
  */
 export async function OpenHackPlugin(_input: any) {
   if (!openhackEnabled()) return {}

@@ -55,9 +55,9 @@ const REQUIRED_METRICS = [
 describe("bench-attack-loop harness", () => {
   test("mock mode with fixture emits every required METRIC exactly once and exits 0", () => {
     const repoRoot = path.resolve(__dirname, "../../..")
-    const script = path.join(repoRoot, "packages", "opencode", "script", "bench-attack-loop.ts")
+    const script = path.join(repoRoot, "packages", "openhack-cli", "script", "bench-attack-loop.ts")
     const fixture = path.join(repoRoot, "perf", "fixtures", "site1.json")
-    const cwd = path.join(repoRoot, "packages", "opencode")
+    const cwd = path.join(repoRoot, "packages", "openhack-cli")
     const proc = spawnSync("bun", ["run", script], {
       cwd,
       env: {
@@ -88,9 +88,9 @@ describe("bench-attack-loop harness", () => {
 
   test("graph vs static both run and emit the same key set", () => {
     const repoRoot = path.resolve(__dirname, "../../..")
-    const script = path.join(repoRoot, "packages", "opencode", "script", "bench-attack-loop.ts")
+    const script = path.join(repoRoot, "packages", "openhack-cli", "script", "bench-attack-loop.ts")
     const fixture = path.join(repoRoot, "perf", "fixtures", "site1.json")
-    const cwd = path.join(repoRoot, "packages", "opencode")
+    const cwd = path.join(repoRoot, "packages", "openhack-cli")
     const run = (mode: string) =>
       spawnSync("bun", ["run", script], {
         cwd,

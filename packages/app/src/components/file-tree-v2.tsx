@@ -1,7 +1,7 @@
 import { useFile } from "@/context/file"
-import { Collapsible } from "@opencode-ai/ui/collapsible"
-import { FileIcon } from "@opencode-ai/ui/file-icon"
-import "@opencode-ai/ui/v2/file-tree-v2.css"
+import { Collapsible } from "@openhack-ai/ui/collapsible"
+import { FileIcon } from "@openhack-ai/ui/file-icon"
+import "@openhack-ai/ui/v2/file-tree-v2.css"
 import {
   createEffect,
   createMemo,
@@ -16,8 +16,8 @@ import {
   type ParentProps,
 } from "solid-js"
 import { Dynamic } from "solid-js/web"
-import type { FileNode } from "@opencode-ai/sdk/v2"
-import { Icon } from "@opencode-ai/ui/v2/icon"
+import type { FileNode } from "@openhack-ai/sdk/v2"
+import { Icon } from "@openhack-ai/ui/v2/icon"
 import {
   dirsToExpand,
   pathToFileUrl,

@@ -2,7 +2,7 @@
 
 **AI-powered security assessment agent for authorized professionals.**
 
-OpenHack is a fork of [OpenCode](https://github.com/anomalyco/opencode) tailored for penetration testing, vulnerability research, and security auditing workflows.
+OpenHack is a fork of [OpenHack](https://github.com/anomalyco/openhack) tailored for penetration testing, vulnerability research, and security auditing workflows.
 
 ## Features
 
@@ -26,7 +26,7 @@ cd ~/openhack
 bun install
 
 # Run
-bun run packages/opencode/src/index.ts
+bun run packages/openhack-cli/src/index.ts
 ```
 
 ## Requirements
@@ -38,7 +38,7 @@ bun run packages/opencode/src/index.ts
 
 ## License
 
-MIT — based on OpenCode by Anomaly
+MIT — based on OpenHack by Anomaly
 
 ## Disclaimer
 
