@@ -19,13 +19,17 @@ import { Codeguard } from "./codeguard"
 import { Orchestrators } from "./orchestrators"
 import { OpenHackPlugin } from "./plugin"
 import { RoundBudget } from "./round-budget"
+import { Managers } from "./managers"
+import { Blackboard } from "./blackboard"
+import { Overwatch } from "./overwatch"
+import { Variants } from "./variants"
 
 export {
   Safety, Scope, Automode, Findings, HallucinationGuard,
   Workflow, ResourceManager, Secrets, Audit, MiddlewareChain,
   MCPLauncher, ROE, Net, Orchestrator, Advisor,
   MOERouter, GlobalConfig, Codeguard, Orchestrators, OpenHackPlugin,
-  RoundBudget,
+  RoundBudget, Managers, Blackboard, Overwatch, Variants,
 }
 
 export const OPENHACK_VERSION = "0.5.0"

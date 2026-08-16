@@ -27,6 +27,13 @@ export namespace Automode {
      * exploit work, etc. Absent → the agent's doctrine tier is used.
      */
     agent_tier?: "main" | "fast" | "cheap" | "draft"
+    /**
+     * Parallel-instance fan-out requested for this specific task, overriding the
+     * loop's per-agent instance doctrine. Set by a phase-manager plan when it wants
+     * a particular objective run more (or fewer) times this round. Absent → the loop
+     * falls back to its agent-doctrine fan-out.
+     */
+    instances?: number
   }
 
   export interface BatchConfig {

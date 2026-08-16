@@ -15,6 +15,14 @@ export namespace GlobalConfig {
      * back to the DEFAULT_AGENT_TIERS table below, then to `main`.
      */
     agent_tiers?: Partial<Record<string, Tier>>
+    /**
+     * Per-agent EXPLICIT model override — an arbitrary `provider/model` id, not a
+     * tier. Written by the o5 / Overwatch benchmark council when it promotes the
+     * best-measured model for a role. Takes precedence over `agent_tiers` (which
+     * can only select one of the four fixed tiers) so o5 can pin any candidate
+     * model. Example: `{ "exploit": "openai/o3", "recon": "deepseek/deepseek-v4" }`.
+     */
+    agent_models?: Partial<Record<string, string>>
   }
 
   const DEFAULT: ModelConfig = {
@@ -71,13 +79,16 @@ export namespace GlobalConfig {
   /**
    * Resolve the model id an agent should use — tier-aware.
    *   1. `activeConfig.custom` (from `openhack model --set X`) always wins.
-   *   2. `activeConfig.agent_tiers[agent]` explicit override.
-   *   3. `DEFAULT_AGENT_TIERS[agent]` doctrine default.
-   *   4. `"main"` fallback for unknown agents.
+   *   2. `activeConfig.agent_models[agent]` explicit per-agent model (o5/Overwatch pin).
+   *   3. `activeConfig.agent_tiers[agent]` explicit tier override.
+   *   4. `DEFAULT_AGENT_TIERS[agent]` doctrine default.
+   *   5. `"main"` fallback for unknown agents.
    * Returns the model id string (e.g. "deepseek/deepseek-v4"), never a tier.
    */
   export function resolveForAgent(agent: string | undefined | null): string {
     if (activeConfig.custom) return activeConfig.custom
+    const pinned = agent ? activeConfig.agent_models?.[agent] : undefined
+    if (pinned) return pinned
     const explicit = agent ? activeConfig.agent_tiers?.[agent] : undefined
     const tier: Tier = explicit ?? DEFAULT_AGENT_TIERS[agent ?? ""] ?? "main"
     return tierModel(tier)

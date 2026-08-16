@@ -81,6 +81,28 @@ describe("GlobalConfig.resolveForAgent — overrides", () => {
   })
 })
 
+describe("GlobalConfig.resolveForAgent — agent_models (o5/Overwatch pin)", () => {
+  test("agent_models pins an arbitrary model, overriding agent_tiers + doctrine", () => {
+    GlobalConfig.set({ agent_tiers: { exploit: "cheap" }, agent_models: { exploit: "openai/o3" } })
+    // doctrine=main, tier override=cheap, but the explicit model wins over both.
+    expect(GlobalConfig.resolveForAgent("exploit")).toBe("openai/o3")
+  })
+
+  test("agent_models is per-agent — other agents keep tier resolution", () => {
+    GlobalConfig.set({ agent_models: { exploit: "openai/o3" } })
+    expect(GlobalConfig.resolveForAgent("exploit")).toBe("openai/o3")
+    expect(GlobalConfig.resolveForAgent("recon")).toBe(GlobalConfig.cheap())
+  })
+
+  test("custom (model --set) still outranks agent_models", () => {
+    GlobalConfig.set({ agent_models: { exploit: "openai/o3" } })
+    GlobalConfig.useCustomModel("anthropic/claude-opus-4")
+    expect(GlobalConfig.resolveForAgent("exploit")).toBe("anthropic/claude-opus-4")
+    GlobalConfig.clearCustom()
+    expect(GlobalConfig.resolveForAgent("exploit")).toBe("openai/o3")
+  })
+})
+
 describe("GlobalConfig.tierModel", () => {
   test("returns the model id for each tier", () => {
     expect(GlobalConfig.tierModel("main")).toBe(GlobalConfig.main())

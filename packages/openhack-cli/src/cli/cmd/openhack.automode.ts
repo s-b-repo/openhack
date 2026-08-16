@@ -26,6 +26,10 @@ import { Knowledge } from "../../../../openhack/src/knowledge"
 import { ConfigStore } from "../../../../openhack/src/config-store"
 import { GlobalConfig } from "../../../../openhack/src/global-config"
 import { RoundBudget } from "../../../../openhack/src/round-budget"
+import { Managers } from "../../../../openhack/src/managers"
+import { Blackboard } from "../../../../openhack/src/blackboard"
+import { Overwatch } from "../../../../openhack/src/overwatch"
+import { Variants } from "../../../../openhack/src/variants"
 import {
   AttackGraph,
   Frontier,
@@ -42,7 +46,7 @@ import {
 // MUST treat these as failures instead of silently logging success. `error`
 // carries a short human reason. Absent `ok` means "assume success" for
 // backwards-compatible injected runners in tests.
-export type LlmResult = { output: string; tokensIn: number; tokensOut: number; cost: number; ok?: boolean; error?: string }
+export type LlmResult = { output: string; tokensIn: number; tokensOut: number; cost: number; ok?: boolean; error?: string; latencyMs?: number }
 export type LlmFn = (prompt: string) => Promise<LlmResult>
 /**
  * Opts a caller may pass to the factory instead of a bare agent string. Enables
@@ -81,6 +85,7 @@ export function makeSubprocessLlmFn(opts: { agent?: string; model?: string; cwd?
   const base = resolveRunCmd()
   return (prompt) =>
     new Promise<LlmResult>((resolve) => {
+      const startedAt = Date.now()
       const args = [...base.slice(1), "run", "--format", "json"]
       if (opts.model) args.push("--model", opts.model)
       if (opts.command) {
@@ -129,18 +134,19 @@ export function makeSubprocessLlmFn(opts: { agent?: string; model?: string; cwd?
       child.stderr.on("data", (d) => { stderr += d.toString() })
       child.on("error", (e) => {
         if (timer) clearTimeout(timer)
-        resolve({ output: `[automode: failed to spawn run — ${e.message}. Set OPENHACK_RUN_CMD to override.]`, tokensIn: 0, tokensOut: 0, cost: 0, ok: false, error: `spawn failed: ${e.message}` })
+        resolve({ output: `[automode: failed to spawn run — ${e.message}. Set OPENHACK_RUN_CMD to override.]`, tokensIn: 0, tokensOut: 0, cost: 0, ok: false, error: `spawn failed: ${e.message}`, latencyMs: Date.now() - startedAt })
       })
       child.on("close", (code) => {
         if (timer) clearTimeout(timer)
         if (buf.trim()) consume(buf)
         const output = texts.join("\n").trim()
+        const latencyMs = Date.now() - startedAt
         // A run only counts as real work when it exited cleanly AND produced
         // assistant text. A non-zero/null exit (crash, ROE/spawn abort, or the
         // timeout SIGKILL) or an empty transcript is a FAILURE — otherwise the
         // loop records dead rounds as "successful" (the golecloud.co.za bug).
         if (code !== 0 && !output) {
-          resolve({ output: `[run exited ${code}] ${stderr.trim().slice(0, 800)}`, tokensIn, tokensOut, cost, ok: false, error: `run exited ${code}` })
+          resolve({ output: `[run exited ${code}] ${stderr.trim().slice(0, 800)}`, tokensIn, tokensOut, cost, ok: false, error: `run exited ${code}`, latencyMs })
           return
         }
         const ok = code === 0 && output.length > 0
@@ -151,6 +157,7 @@ export function makeSubprocessLlmFn(opts: { agent?: string; model?: string; cwd?
           cost,
           ok,
           error: ok ? undefined : code !== 0 ? `run exited ${code}` : "empty transcript",
+          latencyMs,
         })
       })
     })
@@ -237,6 +244,17 @@ function loadFindings(target: string): any[] {
 }
 function countHighValue(findings: any[]): number {
   return findings.filter((f) => (f.severity === "critical" || f.severity === "high") && f.status !== "false_positive").length
+}
+function countVerified(findings: any[]): number {
+  return findings.filter((f) => f.status === "verified").length
+}
+/** Compact, bounded findings summary for a manager planner prompt (avoids huge prompts). */
+function briefFindings(target: string): string {
+  const f = loadFindings(target)
+  if (f.length === 0) return ""
+  const head = f.slice(0, 12).map((x) => `  - [${x.severity ?? "info"}/${x.status ?? "uncertain"}] ${x.title ?? "untitled"}`).join("\n")
+  const more = f.length > 12 ? `\n  … +${f.length - 12} more` : ""
+  return `${f.length} findings (${countHighValue(f)} high-value):\n${head}${more}`
 }
 function roeBlocked(target: string): { blocked: boolean; reason?: string } {
   try { return ROE.enforce(ROE.load(), target, "task") } catch { return { blocked: false } }
@@ -409,8 +427,10 @@ export async function runOrchestrationLoop(target: string, opts: LoopOptions): P
     council: 2, triage: 2, general: 2, defense: 2, "defense-review": 2, plan: 2, planner: 2,
     exploit: 3, "post-exploit": 3, c2: 3,
   }
-  const instancesForTask = (agent?: string): number =>
-    explicitInstances ? instances : Math.max(1, Math.min(instances, INSTANCE_DOCTRINE[agent ?? "general"] ?? instances))
+  const instancesForTask = (agent?: string, override?: number): number =>
+    override && override > 0
+      ? Math.max(1, Math.min(6, Math.round(override)))
+      : explicitInstances ? instances : Math.max(1, Math.min(instances, INSTANCE_DOCTRINE[agent ?? "general"] ?? instances))
   const parallel = opts.parallel !== false
   const council = opts.council !== false
   const plan = opts.plan !== false
@@ -428,6 +448,7 @@ export async function runOrchestrationLoop(target: string, opts: LoopOptions): P
 
   let prevTotal = loadFindings(target).length
   let prevHigh = countHighValue(loadFindings(target))
+  let prevVerified = countVerified(loadFindings(target))
   log(`Starting from ${prevTotal} findings (${prevHigh} high-value). instances=${explicitInstances ? String(instances) : `doctrine(≤${instances})`} parallel=${parallel} plan=${plan} council=${council}`)
 
   // Attack-graph controller — opt-in via LoopOptions.graph or `graph.controller_enabled`
@@ -460,6 +481,25 @@ export async function runOrchestrationLoop(target: string, opts: LoopOptions): P
     log(`  graph: seeded ${Object.keys(graphSnapshot.nodes).length} nodes (frontierK=${frontierK})`)
   }
 
+  // ── Hierarchical managers + o5 (Overwatch) benchmark council + blackboard ──
+  // All three are config-gated and soft: absent/false config reproduces the prior
+  // behavior exactly. Managers (when on) become the round's task selector; o5 picks
+  // the (model×variant) per role and is reviewed every N rounds; the blackboard is
+  // the durable peer channel between managers.
+  const managersCfg = Managers.config()
+  const managersOn = managersCfg.enabled
+  const blackboardOn = Boolean(ConfigStore.get("blackboard.enabled") ?? false)
+  const retainRounds = Math.max(1, Number(ConfigStore.get("blackboard.retain_rounds") ?? 4))
+  const o5cfg = Overwatch.config()
+  const o5On = o5cfg.enabled
+  let overwatchStore = o5On ? Overwatch.load() : null
+  // Per-round attribution for o5: which (model,variant) each role ran + measured latency.
+  const roundRoleChoice = new Map<string, { modelId: string; variantId: string }>()
+  const roundRoleLatency = new Map<string, { sum: number; n: number }>()
+  if (managersOn) log(`  managers: enabled (5-phase planners, tier=${managersCfg.tier})`)
+  if (o5On) log(`  o5/Overwatch: enabled (review every ${o5cfg.reviewEvery} rounds, ε=${o5cfg.epsilon})`)
+  if (blackboardOn) log(`  blackboard: enabled (retain ${retainRounds} rounds)`)
+
   // Dispatch one objective instance: consult MoE (records routing every phase), apply
   // the instance lens, and execute. A distinct id per instance keeps result files apart.
   //
@@ -477,17 +517,114 @@ export async function runOrchestrationLoop(target: string, opts: LoopOptions): P
       if (!agent) agent = expert.targetAgent
       log(`    moe ${task.id}#${i + 1} → ${expert.name} (${confidence.toFixed(2)}) agent=${agent}${task.command ? ` command=${task.command}` : ""}`)
     } catch {}
-    const lens = INSTANCE_LENSES[i % INSTANCE_LENSES.length]
-    const variant: Automode.TaskSpec = i === 0 ? task : { ...task, id: `${task.id}#${i + 1}`, prompt: task.prompt + lens }
-    // Per-task model resolution: explicit tier hint > agent doctrine > loop default.
+
+    // o5 / Overwatch: when this role has a candidate grid, pick the (model×variant)
+    // to run this round (deterministic epsilon-greedy) and record the choice for the
+    // end-of-round benchmark update. Otherwise fall back to the doctrine tier model.
     let taskModel: string | undefined
-    try {
-      taskModel = task.agent_tier ? GlobalConfig.tierModel(task.agent_tier) : GlobalConfig.resolveForAgent(agent)
-    } catch {}
-    const llmFn = task.command
+    let variantFragment = ""
+    const o5Candidate = o5On && agent ? o5cfg.candidates[agent] : undefined
+    if (o5On && overwatchStore && agent && o5Candidate) {
+      try {
+        const choice = Overwatch.pick(overwatchStore, agent, o5Candidate, round, o5cfg.epsilon, {
+          minSamples: o5cfg.minSamples, seedFromModelsDev: o5cfg.seedFromModelsDev,
+        })
+        taskModel = choice.modelId
+        variantFragment = Variants.fragmentForId(agent, choice.variantId)
+        roundRoleChoice.set(agent, choice)
+      } catch {}
+    }
+    if (!taskModel) {
+      // Per-task model resolution: explicit tier hint > agent doctrine (agent_models /
+      // agent_tiers) > loop default. `resolveForAgent` already honors any o5-enforced pin.
+      try {
+        taskModel = task.agent_tier ? GlobalConfig.tierModel(task.agent_tier) : GlobalConfig.resolveForAgent(agent)
+      } catch {}
+    }
+
+    const lens = INSTANCE_LENSES[i % INSTANCE_LENSES.length]
+    const extra = lens + variantFragment
+    const variant: Automode.TaskSpec =
+      i === 0 && !extra
+        ? task
+        : { ...task, id: i === 0 ? task.id : `${task.id}#${i + 1}`, prompt: task.prompt + extra }
+
+    const baseLlmFn = task.command
       ? opts.makeLlmFn({ command: task.command, model: taskModel, agent })
       : opts.makeLlmFn({ agent, model: taskModel })
+    // Wrap to capture real per-role latency for o5 (mean over the round's instances).
+    const llmFn: typeof baseLlmFn =
+      o5On && agent
+        ? async (p: string) => {
+            const r = await baseLlmFn(p)
+            if (typeof r.latencyMs === "number") {
+              const acc = roundRoleLatency.get(agent!) ?? { sum: 0, n: 0 }
+              acc.sum += r.latencyMs
+              acc.n += 1
+              roundRoleLatency.set(agent!, acc)
+            }
+            return r
+          }
+        : baseLlmFn
     await Automode.executeTask(variant, session, llmFn)
+  }
+
+  /**
+   * Manager tier: one cheap LLM planning call per active phase, deciding which of the
+   * phase's whitelisted objectives to dispatch this round + what to tell peers. Phases
+   * with ≤1 objective skip the LLM call and dispatch statically (cost control). Any
+   * planner error / empty plan falls back to the phase's full static objective set, so
+   * a phase is never starved. Returns the merged task set for the round.
+   */
+  const runManagerPlanning = async (roundNo: number): Promise<Automode.TaskSpec[]> => {
+    const merged: Automode.TaskSpec[] = []
+    const findingsBrief = briefFindings(target)
+    let gapsBrief = ""
+    try { gapsBrief = Coverage.gaps(Coverage.load(target)).slice(0, 12).map((g: any) => `  - ${JSON.stringify(g).slice(0, 120)}`).join("\n") } catch {}
+    for (const phase of Managers.PHASE_IDS) {
+      const allowed = Managers.allowedObjectives(phase, managersCfg)
+      if (allowed.length === 0) continue
+      if (allowed.length <= 1) {
+        merged.push(...Managers.staticTasks(phase, target, managersCfg))
+        continue
+      }
+      const pcfg = managersCfg.phases[phase]
+      const tier = (pcfg.tier || managersCfg.tier || "cheap") as GlobalConfig.Tier
+      let managerModel: string | undefined
+      try { managerModel = pcfg.model || managersCfg.model || GlobalConfig.tierModel(tier) } catch {}
+      const inboxMsgs = blackboardOn ? Blackboard.inbox(target, phase, { includeAll: true, onlyOpen: true }) : []
+      const prompt = Managers.buildPlannerPrompt({
+        phase, target, allowed,
+        findingsSummary: findingsBrief,
+        inbox: blackboardOn ? Blackboard.formatInbox(inboxMsgs) : "(blackboard disabled)",
+        coverageGaps: gapsBrief,
+      })
+      let plan: Managers.Plan | null = null
+      try {
+        const res = await opts.makeLlmFn({ agent: "phase-manager", model: managerModel })(prompt)
+        if (res.ok !== false) plan = Managers.parsePlan(phase, res.output, allowed)
+      } catch (e: any) {
+        log(`    manager ${phase}: soft error — ${e?.message ?? e}`)
+      }
+      const tasks = plan ? Managers.toTasks(plan, target) : []
+      if (tasks.length === 0) {
+        log(`    manager ${phase}: no plan → static`)
+        merged.push(...Managers.staticTasks(phase, target, managersCfg))
+      } else {
+        log(`    manager ${phase}: dispatch ${tasks.map((t) => t.id).join(", ")}${plan!.skip.length ? ` (skip ${plan!.skip.join(",")})` : ""}`)
+        merged.push(...tasks)
+        // Post peer messages, then consume the inbox this manager read.
+        if (blackboardOn) {
+          for (const m of plan!.messages) {
+            try { Blackboard.post(target, { round: roundNo, from: phase, to: m.to, kind: m.kind, text: m.text, refs: m.refs }) } catch {}
+          }
+          try { Blackboard.markConsumed(target, inboxMsgs.map((m) => m.id), phase) } catch {}
+        }
+      }
+    }
+    // De-dup by objective id (two phases could, via config, list the same objective).
+    const seen = new Set<string>()
+    return merged.filter((t) => (seen.has(t.id) ? false : (seen.add(t.id), true)))
   }
 
   // Planning phase (default on): produce a prioritized plan before executing.
@@ -529,14 +666,26 @@ export async function runOrchestrationLoop(target: string, opts: LoopOptions): P
     round++
     log(`── Round ${round}/${budgetCap}${budgetCap > opts.maxRounds ? ` (extended from ${opts.maxRounds})` : ""} ──`)
 
-    // Choose this round's task set:
-    //  - Round 1 (or graph off): the static Orchestrators batch (warm start).
-    //  - Rounds 2+ with graph on: the top-k queued frontier the controller shaped
-    //    from the previous round. If the frontier is empty for any reason (e.g. the
-    //    controller returned nothing), fall back to the static batch so we never
-    //    starve a round.
+    // Reset o5's per-round attribution before dispatch.
+    roundRoleChoice.clear()
+    roundRoleLatency.clear()
+
+    // Choose this round's task set. Precedence:
+    //  - managers on: the 5 phase-managers plan which objectives run (main→managers→workers).
+    //  - else graph on (rounds 2+): the top-k queued frontier the controller shaped.
+    //  - else: the static Orchestrators batch (warm start).
+    // Any empty selection falls back to the static batch so a round is never starved.
     let activeTasks: Automode.TaskSpec[] = roundTasks
-    if (graphSnapshot && round > 1) {
+    if (managersOn) {
+      log(`  ▶ manager planning (round ${round})`)
+      const planned = await runManagerPlanning(round)
+      if (planned.length > 0) {
+        activeTasks = planned
+        log(`  managers: ${planned.length} objective(s) selected`)
+      } else {
+        log(`  managers: empty plan → static batch`)
+      }
+    } else if (graphSnapshot && round > 1) {
       const front = AttackGraph.frontier(graphSnapshot, frontierK)
       if (front.length) {
         activeTasks = front.map((a) => {
@@ -560,8 +709,8 @@ export async function runOrchestrationLoop(target: string, opts: LoopOptions): P
     const activePriorities = [...new Set(activeTasks.map((t) => t.priority ?? 3))].sort((a, b) => a - b)
     for (const pri of activePriorities) {
       const group = activeTasks.filter((t) => (t.priority ?? 3) === pri)
-      const jobs = group.flatMap((task) => Array.from({ length: instancesForTask(task.agent) }, (_, i) => ({ task, i })))
-      log(`  phase p${pri}: ${group.map((g) => `${g.id}×${instancesForTask(g.agent)}`).join(", ")}`)
+      const jobs = group.flatMap((task) => Array.from({ length: instancesForTask(task.agent, task.instances) }, (_, i) => ({ task, i })))
+      log(`  phase p${pri}: ${group.map((g) => `${g.id}×${instancesForTask(g.agent, g.instances)}`).join(", ")}`)
       if (parallel) {
         await Promise.all(jobs.map((j) => runInstance(j.task, j.i).catch((e) => log(`    ! ${j.task.id}#${j.i + 1}: ${e?.message}`))))
       } else {
@@ -687,6 +836,51 @@ export async function runOrchestrationLoop(target: string, opts: LoopOptions): P
       }
     }
 
+    // o5 / Overwatch benchmark update — record this round's per-role (model×variant)
+    // outcomes (round-share of findings/cost/confirmed like Scores, plus real per-role
+    // latency), then every review_every rounds re-rank + enforce the winners onto
+    // GlobalConfig.agent_models + Variants so the NEXT round dispatches the best-measured
+    // model/variant per role. Single in-process writer; withLock is defense-in-depth.
+    if (o5On && roundRoleChoice.size > 0) {
+      try {
+        const roles = [...roundRoleChoice.keys()]
+        const share = roles.length
+        const newVerified = Math.max(0, countVerified(findings) - prevVerified)
+        const roundCost = session.totalCost - prevCost
+        const outcomes: Overwatch.RoundRoleOutcome[] = roles.map((role) => {
+          const choice = roundRoleChoice.get(role)!
+          const lat = roundRoleLatency.get(role)
+          return {
+            role, modelId: choice.modelId, variantId: choice.variantId,
+            newFindings: newFindings / share,
+            newHigh: newHigh / share,
+            confirmed: newVerified / share,
+            costUsd: roundCost / share,
+            latencyMs: lat && lat.n > 0 ? lat.sum / lat.n : 0,
+          }
+        })
+        Overwatch.withLock(() => {
+          const store = Overwatch.load()
+          Overwatch.record(store, round, outcomes)
+          if (round % o5cfg.reviewEvery === 0) {
+            const winners = Overwatch.review(store, o5cfg.candidates, o5cfg.minSamples, round)
+            Overwatch.save(store)
+            Overwatch.enforce(winners)
+            const switched = Object.entries(winners).map(([r, w]) => `${r}→${w.modelId}#${w.variantId}`).join(", ")
+            if (switched) log(`  o5 review r${round}: ${switched}`)
+          } else {
+            Overwatch.save(store)
+          }
+          overwatchStore = store
+        })
+      } catch (e: any) {
+        log(`  o5: soft error — ${e?.message ?? e}`)
+      }
+    }
+
+    // Blackboard housekeeping — drop old consumed peer messages (open ones are kept).
+    if (blackboardOn) { try { Blackboard.prune(target, retainRounds, round) } catch {} }
+
     prevCost = session.totalCost
 
     if (session.status === "cost_limited") { log("Terminating: batch budget reached."); break }
@@ -763,6 +957,7 @@ export async function runOrchestrationLoop(target: string, opts: LoopOptions): P
 
     prevTotal = total
     prevHigh = high
+    prevVerified = countVerified(findings)
   }
 
   if (reportTask) {

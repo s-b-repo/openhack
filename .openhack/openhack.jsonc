@@ -101,6 +101,20 @@
         "OPENHACK_FINDINGS_MCP_ALLOW_MUTATE": "{env:OPENHACK_FINDINGS_MCP_ALLOW_MUTATE}"
       }
     },
+    // Inter-manager blackboard MCP (packages/openhack-mcp-blackboard/). Lets an
+    // in-session worker agent read peer directives (blackboard_inbox / _list, open)
+    // and — gated on OPENHACK_BLACKBOARD_MCP_ALLOW_POST=1 — post its own or mark
+    // messages consumed. The five phase-managers already post/read in-process, so
+    // this is opt-in: enable it only when you want workers themselves on the channel.
+    "blackboard": {
+      "type": "local",
+      "command": ["bun", "run", "openhack-mcp-blackboard"],
+      "enabled": false,
+      "startupTimeout": 5000,
+      "environment": {
+        "OPENHACK_BLACKBOARD_MCP_ALLOW_POST": "{env:OPENHACK_BLACKBOARD_MCP_ALLOW_POST}"
+      }
+    },
     // Cloudflare-fronting MCP (packages/openhack-mcp-cloudflare/). Read tools
     // are open; IP-access-rule add/delete is gated on
     // OPENHACK_CF_MCP_ALLOW_WRITE=1 + a CF_API_TOKEN with the right scopes.
@@ -200,6 +214,47 @@
     "expensive_model_for_exploitation": "anthropic/claude-sonnet-4",
     "token_budget_per_task": 100000
   },
+  // ── Hierarchical AI orchestration: main → 5 phase-managers → workers ──
+  // The five managers are cheap LLM planners (packages/openhack/src/managers.ts +
+  // .openhack/agents/phase-manager.md). Each owns one phase of the attack chain and, each
+  // round, decides which of its objectives to dispatch and what to tell peer managers.
+  // The deterministic loop stays the scheduler (ROE / budget / rounds / termination).
+  // `report` folds into the main AI's end-of-run task. enabled:false restores the flat loop.
+  "managers": {
+    "enabled": true,
+    "tier": "cheap",
+    "phases": {
+      "recon": { "objectives": ["osint-passive", "recon-depth"] },
+      "enumeration": { "objectives": ["combination-gaps"] },
+      "exploitation": { "objectives": ["internal-access", "chaining-planning", "defense-review"] },
+      "post-exploitation": { "objectives": ["pii-exposure", "pivoting", "privesc"] },
+      "c2": { "objectives": ["c2-handoff", "cleanup-artifacts"] }
+    }
+  },
+  // Inter-manager blackboard — durable peer directives/hints between the five managers,
+  // delivered at the round boundary (.openhack/blackboard/<target>.json, HMAC-signed).
+  "blackboard": {
+    "enabled": true,
+    "retain_rounds": 4,
+    "mcp": false
+  },
+  // o5 / Overwatch benchmark council (packages/openhack/src/overwatch.ts). Continuously
+  // benchmarks (role × model × variant) from the loop's own telemetry and, every
+  // `review_every` rounds, forces every role with a candidate grid onto its best-measured
+  // model+variant (via GlobalConfig.agent_models + .openhack/agent-variants.json). Roles
+  // without a grid keep their doctrine-tier model. Tune `candidates` to your available
+  // providers; the defaults use models already wired by the tier config.
+  "o5": {
+    "enabled": true,
+    "review_every": 3,
+    "explore_epsilon": 0.2,
+    "min_samples": 3,
+    "seed_from_models_dev": false,
+    "candidates": {
+      "recon": { "models": ["deepseek/deepseek-v4", "anthropic/claude-haiku-4-5"], "variants": ["default", "exhaustive"] },
+      "exploit": { "models": ["anthropic/claude-sonnet-4", "anthropic/claude-haiku-4-5"], "variants": ["default", "chain-forward"] }
+    }
+  },
   // Deception / honeypot layer (packages/openhack/src/deception.ts). When enabled,
   // an AI inspecting its env sees watcher processes, audit logs, and a fully
   // stocked "exploit-gym" toolkit — all inert. mode "sandbox" contains our own
@@ -249,6 +304,14 @@
         "bash": "deny"
       }
     },
+    "phase-manager": {
+      "permission": {
+        "mcp_*": "deny",
+        "edit": "deny",
+        "bash": "deny"
+      },
+      "tool_cap": 5
+    },
     "recon": {
       "permission": {
         "edit": "deny",
@@ -259,6 +322,7 @@
         "pentestai": ["ptai_port_scan", "ptai_subdomain_enum", "ptai_service_fingerprint"],
         "rustsploit": ["rustsploit_scan_*"],
         "camoufox": ["camoufox_*"],
+        "blackboard": ["blackboard_*"],
         // Specialists can READ, DRAFT edits, and VALIDATE, but not sign/revoke.
         "roe": ["roe_status", "roe_validate", "roe_list_authorized_tools", "roe_list_authorized_models", "roe_validate_model", "roe_time_remaining_minutes", "roe_summary_markdown", "roe_get", "roe_create_draft", "roe_set_targets", "roe_set_authorized_tools", "roe_set_authorized_models", "roe_set_exclusions", "roe_set_expiry_days", "roe_set_notes", "roe_diff", "roe_add_authorized_model", "roe_remove_authorized_model"]
       },
@@ -274,6 +338,7 @@
         "pentestai": ["ptai_run_probe_*", "ptai_exploit_*"],
         "rustsploit": ["rustsploit_exploit_*"],
         "camoufox": ["camoufox_*"],
+        "blackboard": ["blackboard_*"],
         // Read + validate only (no draft edits from exploit — an exploit
         // specialist shouldn't be rewriting authorized_tools mid-run).
         "roe": ["roe_status", "roe_validate", "roe_list_authorized_tools", "roe_list_authorized_models", "roe_validate_model", "roe_time_remaining_minutes", "roe_summary_markdown", "roe_get"]
@@ -288,6 +353,7 @@
       "mcp_tools": {
         "rustsploit": ["rustsploit_loot_*", "rustsploit_cred_*"],
         "arcticfox": ["arcticfox_agent_deploy", "arcticfox_agent_status"],
+        "blackboard": ["blackboard_*"],
         "roe": ["roe_status", "roe_validate", "roe_list_authorized_tools", "roe_list_authorized_models", "roe_validate_model", "roe_time_remaining_minutes"]
       },
       "tool_cap": 30
@@ -299,6 +365,7 @@
       },
       "mcp_tools": {
         "arcticfox": ["arcticfox_*"],
+        "blackboard": ["blackboard_*"],
         "roe": ["roe_status", "roe_validate", "roe_time_remaining_minutes"]
       },
       "tool_cap": 20
