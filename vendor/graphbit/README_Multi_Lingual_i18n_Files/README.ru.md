@@ -1,0 +1,303 @@
+<div align="center">
+
+# GraphBit - Высокопроизводительный Агентный Фреймворк (Русский)
+
+<p align="center">
+    <img src="../assets/GraphBit_Final_GB_Github_GIF.gif" style="max-width: 600px; height: auto;" alt="Logo" />
+</p>
+<p align="center">
+    <img alt="GraphBit - Developer-first, enterprise-grade LLM framework. | Product Hunt" loading="lazy" width="250" height="54" decoding="async" data-nimg="1" class="w-auto h-[54px] max-w-[250px]" style="color:transparent" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1004951&amp;theme=light&amp;t=1757340621693"> <img alt="GraphBit - Developer-first, enterprise-grade LLM framework. | Product Hunt" loading="lazy" width="250" height="54" decoding="async" data-nimg="1" class="w-auto h-[54px] max-w-[250px]" style="color:transparent" src="https://api.producthunt.com/widgets/embed-image/v1/top-post-badge.svg?post_id=1004951&amp;theme=light&amp;period=daily&amp;t=1757933101511">
+</p>
+
+<p align="center">
+    <a href="https://graphbit.ai/">Website</a> |
+    <a href="https://docs.graphbit.ai/">Docs</a> |
+    <a href="https://discord.com/invite/FMhgB3paMD">Discord</a>
+    <br /><br />
+</p>
+
+</p>
+
+<p align="center">
+    <a href="https://trendshift.io/repositories/14884" target="_blank"><img src="https://trendshift.io/api/badge/repositories/14884" alt="InfinitiBit%2Fgraphbit | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
+    <br>
+    <a href="https://pepy.tech/projects/graphbit"><img src="https://static.pepy.tech/personalized-badge/graphbit?period=total&units=INTERNATIONAL_SYSTEM&left_color=GREY&right_color=GREEN&left_text=Downloads" alt="PyPI Downloads"/></a>
+</p>
+
+<p align="center">
+    <a href="https://pypi.org/project/graphbit/"><img src="https://img.shields.io/pypi/v/graphbit?color=blue&label=PyPI" alt="PyPI"></a>
+    <a href="https://pypi.org/project/graphbit/"><img src="https://img.shields.io/pypi/dm/graphbit?color=blue&label=Downloads" alt="PyPI Downloads"></a>
+    <a href="https://github.com/InfinitiBit/graphbit/actions/workflows/update-docs.yml"><img src="https://img.shields.io/github/actions/workflow/status/InfinitiBit/graphbit/update-docs.yml?branch=main&label=Build" alt="Build Status"></a>
+    <a href="https://github.com/InfinitiBit/graphbit/blob/main/CONTRIBUTING.md"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome"></a>
+    <br>
+    <a href="https://www.rust-lang.org"><img src="https://img.shields.io/badge/rust-1.70+-orange.svg?logo=rust" alt="Rust Version"></a>
+    <a href="https://www.python.org"><img src="https://img.shields.io/badge/python-3.9--3.13-blue.svg?logo=python&logoColor=white" alt="Python Version"></a>
+    <a href="https://github.com/InfinitiBit/graphbit/blob/main/LICENSE.md"><img src="https://img.shields.io/badge/license-Custom-lightgrey.svg" alt="License"></a>
+
+</p>
+<p align="center">
+    <a href="https://www.youtube.com/@graphbitAI"><img src="https://img.shields.io/badge/YouTube-FF0000?logo=youtube&logoColor=white" alt="YouTube"></a>
+    <a href="https://x.com/graphbit_ai"><img src="https://img.shields.io/badge/X-000000?logo=x&logoColor=white" alt="X"></a>
+    <a href="https://discord.com/invite/FMhgB3paMD"><img src="https://img.shields.io/badge/Discord-7289da?logo=discord&logoColor=white" alt="Discord"></a>
+    <a href="https://www.linkedin.com/showcase/graphbitai/"><img src="https://img.shields.io/badge/LinkedIn-0077B5?logo=linkedin&logoColor=white" alt="LinkedIn"></a>
+</p>
+
+**Типобезопасные Рабочие Процессы ИИ-Агентов с Производительностью Rust**
+
+</div>
+
+---
+
+🚧 **Перевод в процессе** - Этот документ переводится с английского.
+
+📖 **[Read in English](../README.md)** | **[Читать на английском](../README.md)**
+
+---
+
+**Читать на других языках**: [🇨🇳 简体中文](README.zh-CN.md) | [🇨🇳 繁體中文](README.zh-TW.md) | [🇪🇸 Español](README.es.md) | [🇫🇷 Français](README.fr.md) | [🇩🇪 Deutsch](README.de.md) | [🇯🇵 日本語](README.ja.md) | [🇰🇷 한국어](README.ko.md) | [🇮🇳 हिन्दी](README.hi.md) | [🇸🇦 العربية](README.ar.md) | [🇮🇹 Italiano](README.it.md) | [🇧🇷 Português](README.pt-BR.md) | [🇧🇩 বাংলা](README.bn.md)
+
+---
+
+## О GraphBit
+
+GraphBit — это агентный ИИ-фреймворк с доступным исходным кодом для разработчиков, которым нужно детерминированное, параллельное выполнение с низкими накладными расходами.
+
+## Почему GraphBit?
+
+Эффективность решает, кто масштабируется. GraphBit создан для разработчиков, которым нужно детерминированное, параллельное и сверхэффективное выполнение ИИ без накладных расходов.
+
+Построенный на ядре Rust с минимальным слоем Python, GraphBit обеспечивает до 68× меньшее использование CPU и 140× меньший объем памяти по сравнению с другими фреймворками, сохраняя равную или большую пропускную способность.
+
+Он поддерживает многоагентные рабочие процессы, которые выполняются параллельно, сохраняют память между шагами, самовосстанавливаются после сбоев и гарантируют 100% надежность задач. GraphBit создан для производственных нагрузок, от корпоративных ИИ-систем до развертываний на периферии с ограниченными ресурсами.
+
+## Основные Возможности
+
+- **Выбор Инструментов** - LLM интеллектуально выбирают инструменты на основе описаний
+- **Типобезопасность** - Строгая типизация на каждом уровне выполнения
+- **Надежность** - Автоматические выключатели, политики повторных попыток, обработка ошибок и восстановление после сбоев
+- **Поддержка Нескольких LLM** - OpenAI, Azure OpenAI, Anthropic, OpenRouter, DeepSeek, Replicate, Ollama, TogetherAI и другие
+- **Управление Ресурсами** - Контроль параллелизма и оптимизация памяти
+- **Наблюдаемость** - Встроенная трассировка, структурированные логи и метрики производительности
+
+## Бенчмарк
+
+GraphBit был создан для эффективности в масштабе, не теоретических утверждений, а измеренных результатов.
+
+Наш внутренний набор бенчмарков сравнил GraphBit с ведущими фреймворками агентов на основе Python при идентичных рабочих нагрузках.
+
+| Метрика             | GraphBit        | Другие Фреймворки | Выигрыш                  |
+|:--------------------|:---------------:|:----------------:|:-------------------------|
+| Использование CPU   | 1.0× базовый    | 68.3× выше       | ~68× CPU                 |
+| Объем Памяти        | 1.0× базовый    | 140× выше        | ~140× Память             |
+| Скорость Выполнения | ≈ равно / быстрее | —              | Стабильная пропускная способность |
+| Детерминизм         | 100% успех      | Переменный       | Гарантированная надежность |
+
+GraphBit последовательно обеспечивает эффективность производственного уровня для вызовов LLM, вызовов инструментов и цепочек мультиагентов.
+
+### Демо Бенчмарка
+
+<div align="center">
+  <a href="https://www.youtube.com/watch?v=MaCl5oENeAY">
+    <img src="https://img.youtube.com/vi/MaCl5oENeAY/maxresdefault.jpg" alt="GraphBit Benchmark Demo" style="max-width: 600px; height: auto;">
+  </a>
+  <p><em>Посмотреть Демо Бенчмарка GraphBit</em></p>
+</div>
+
+## Когда Использовать GraphBit
+
+Выбирайте GraphBit, если вам нужно:
+
+- Мультиагентные системы производственного уровня, которые не рухнут под нагрузкой
+- Типобезопасное выполнение и воспроизводимые результаты
+- Оркестрация в реальном времени для гибридных или потоковых AI-приложений
+- Эффективность уровня Rust с эргономикой уровня Python
+
+Если вы масштабируетесь за пределы прототипов или заботитесь о детерминизме во время выполнения, GraphBit для вас.
+
+## Быстрый Старт
+
+### Установка
+
+Рекомендуется использовать виртуальное окружение.
+
+```bash
+pip install graphbit
+```
+
+### Видеоурок по Быстрому Старту
+
+<div align="center">
+  <a href="https://youtu.be/ti0wbHFKKFM?si=hnxi-1W823z5I_zs">
+    <img src="https://img.youtube.com/vi/ti0wbHFKKFM/maxresdefault.jpg" alt="GraphBit Quick Start Tutorial" style="max-width: 600px; height: auto;">
+  </a>
+  <p><em>Посмотрите руководство по установке GraphBit через PyPI | Полное руководство по примеру и запуску</em></p>
+</div>
+
+
+### Настройка Окружения
+
+Настройте API-ключи, которые вы хотите использовать в своем проекте:
+```bash
+# OpenAI (необязательно – требуется при использовании моделей OpenAI)
+export OPENAI_API_KEY=your_openai_api_key_here
+
+# Anthropic (необязательно – требуется при использовании моделей Anthropic)
+export ANTHROPIC_API_KEY=your_anthropic_api_key_here
+```
+
+> **Примечание по Безопасности**: Никогда не фиксируйте API-ключи в системе контроля версий. Всегда используйте переменные окружения или безопасное управление секретами.
+
+### Базовое Использование
+```python
+import os
+
+from graphbit import LlmConfig, Executor, Workflow, Node, tool
+
+# Инициализация и настройка
+config = LlmConfig.openai(os.getenv("OPENAI_API_KEY"), "gpt-4o-mini")
+
+# Создать исполнителя
+executor = Executor(config)
+
+# Создать инструменты с четкими описаниями для выбора LLM
+@tool(_description="Получить текущую информацию о погоде для любого города")
+def get_weather(location: str) -> dict:
+    return {"location": location, "temperature": 22, "condition": "sunny"}
+
+@tool(_description="Выполнить математические вычисления и вернуть результаты")
+def calculate(expression: str) -> str:
+    return f"Result: {eval(expression)}"
+
+# Построить рабочий процесс
+workflow = Workflow("Analysis Pipeline")
+
+# Создать узлы агентов
+smart_agent = Node.agent(
+    name="Smart Agent",
+    prompt="What's the weather in Paris and calculate 15 + 27?",
+    system_prompt="You are an assistant skilled in weather lookup and math calculations. Use tools to answer queries accurately.",
+    tools=[get_weather, calculate]
+)
+
+processor = Node.agent(
+    name="Data Processor",
+    prompt="Process the results obtained from Smart Agent.",
+    system_prompt="""You process and organize results from other agents.
+
+    - Summarize and clarify key points
+    - Structure your output for easy reading
+    - Focus on actionable insights
+    """
+)
+
+# Подключить и выполнить
+id1 = workflow.add_node(smart_agent)
+id2 = workflow.add_node(processor)
+workflow.connect(id1, id2)
+
+result = executor.execute(workflow)
+print(f"Workflow completed: {result.is_success()}")
+print("\nSmart Agent Output: \n", result.get_node_output("Smart Agent"))
+print("\nData Processor Output: \n", result.get_node_output("Data Processor"))
+```
+
+## Наблюдаемость и Трассировка
+
+GraphBit Tracer захватывает и отслеживает вызовы LLM и рабочие процессы ИИ с минимальной конфигурацией. Он оборачивает клиенты GraphBit LLM и исполнители рабочих процессов для отслеживания промптов, ответов, использования токенов, задержки и ошибок без изменения вашего кода.
+
+<div align="center">
+  <a href="https://www.youtube.com/watch?v=nzwrxSiRl2U">
+    <img src="https://img.youtube.com/vi/nzwrxSiRl2U/maxresdefault.jpg" alt="GraphBit Observability & Tracing" style="max-width: 600px; height: auto;">
+  </a>
+  <p><em>Посмотрите руководство по Наблюдаемости и Трассировке GraphBit</em></p>
+</div>
+
+## Высокоуровневая Архитектура
+
+<p align="center">
+  <img src="../assets/architecture.svg" height="250" alt="GraphBit Architecture">
+</p>
+
+Трехуровневый дизайн для надежности и производительности:
+- **Ядро Rust** - Движок рабочих процессов, агенты и провайдеры LLM
+- **Слой Оркестрации** - Управление проектами и выполнение
+- **Python API** - Привязки PyO3 с поддержкой асинхронности
+
+## Интеграции Python API
+
+GraphBit предоставляет богатый Python API для создания и интеграции агентных рабочих процессов:
+
+- **Клиенты LLM** - Интеграции LLM с несколькими провайдерами (OpenAI, Anthropic, Azure и другие)
+- **Рабочие Процессы** - Определение и управление графами рабочих процессов с несколькими агентами с управлением состоянием
+- **Узлы** - Узлы агентов, узлы инструментов и пользовательские компоненты рабочих процессов
+- **Исполнители** - Движок выполнения рабочих процессов с управлением конфигурацией
+- **Система Инструментов** - Декораторы функций, реестр и фреймворк выполнения для инструментов агентов
+- **Результаты Рабочих Процессов** - Результаты выполнения с метаданными, временем и доступом к выводу
+- **Эмбеддинги** - Векторные эмбеддинги для семантического поиска и извлечения
+- **Контекст Рабочего Процесса** - Общее состояние и переменные в процессе выполнения рабочего процесса
+- **Загрузчики Документов** - Загрузка и разбор документов из нескольких форматов (PDF, DOCX, TXT, JSON, CSV, XML, HTML)
+- **Разделители Текста** - Разделение документов на фрагменты (символ, токен, предложение, рекурсивный)
+
+Для полного списка классов, методов и примеров использования см. [Справочник Python API](docs/api-reference/python-api.md).
+
+## Документация
+
+Для полной документации посетите: [https://docs.graphbit.ai/](https://docs.graphbit.ai/)
+
+## Экосистема и Расширения
+
+Модульная архитектура GraphBit поддерживает внешние интеграции:
+
+| Категория         | Примеры                                                                                       |
+|:------------------|:----------------------------------------------------------------------------------------------|
+| Провайдеры LLM    | OpenAI, Anthropic, Azure OpenAI, DeepSeek, Together, Ollama, OpenRouter, Fireworks, Mistral AI, Replicate, Perplexity, HuggingFace, AI21, Bytedance, xAI, и другие |
+| Векторные Хранилища | Pinecone, Qdrant, Chroma, Milvus, Weaviate, FAISS, Elasticsearch, AstraDB, Redis, и другие |
+| Базы Данных       | PostgreSQL (PGVector), MongoDB, MariaDB, IBM DB2, Redis, и другие                             |
+| Облачные Платформы | AWS (Boto3), Azure, Google Cloud Platform, и другие                                          |
+| API Поиска        | Serper, Google Search, GitHub Search, GitLab Search, и другие                                 |
+| Модели Эмбеддингов | OpenAI Embeddings, Voyage AI, и другие                                                       |
+
+Расширения разрабатываются и поддерживаются сообществом.
+
+<p align="center">
+  <img src="../assets/Ecosystem.png" alt="GraphBit Ecosystem - Stop Choosing, Start Orchestrating" style="max-width: 100%; height: auto;">
+</p>
+
+
+### Создание Вашего Первого Рабочего Процесса Агента с GraphBit
+
+<div align="center">
+  <a href="https://www.youtube.com/watch?v=gKvkMc2qZcA">
+    <img src="https://img.youtube.com/vi/gKvkMc2qZcA/maxresdefault.jpg" alt="Making Agent Workflow by GraphBit" style="max-width: 600px; height: auto;">
+  </a>
+  <p><em>Посмотрите руководство по созданию рабочего процесса агента с GraphBit</em></p>
+</div>
+
+## Вклад в GraphBit
+
+Мы приветствуем вклад. Чтобы начать, пожалуйста, см. файл [Contributing](CONTRIBUTING.md) для настройки разработки и руководств.
+
+GraphBit создан замечательным сообществом исследователей и инженеров.
+
+<a href="https://github.com/Infinitibit/graphbit/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=Infinitibit/graphbit" />
+</a>
+
+## Безопасность
+
+Если вы обнаружите уязвимость безопасности, пожалуйста, сообщите об этом ответственно через GitHub Security или по электронной почте, а не создавая публичную проблему.
+
+Для подробных процедур отчетности и сроков ответа см. нашу [Security Policy](SECURITY.md).
+
+## Лицензия
+
+Проект GraphBit лицензирован под Apache License, версия 2.0.
+
+Для ознакомления с полными условиями и положениями, см. [Полная лицензия](LICENSE.md).
+
+Copyright © 2023–2026 InfinitiBit GmbH. All rights reserved.
+
+---
+
+**Примечание**: Этот перевод поддерживается сообществом. Если вы найдете ошибки или хотите улучшить перевод, пожалуйста, отправьте Pull Request.
+

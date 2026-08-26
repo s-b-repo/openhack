@@ -1,0 +1,227 @@
+[dependencies]
+graphbit-core = {workspace = true, features = ["python"]}
+anyhow.workspace = true
+async-trait.workspace = true
+chrono.workspace = true
+futures.workspace = true
+num_cpus.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+temp-env.workspace = true
+tempfile.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+pyo3 = {workspace = true, features = ["auto-initialize"]}
+async-trait.workspace = true
+temp-env.workspace = true
+
+[features]
+default = []
+
+[lints]
+workspace = true
+
+# Root package (library crate)
+[package]
+description = "GraphBit agentic workflow automation framework (library)"
+name = "graphbit-lib"
+publish = false
+authors.workspace = true
+categories.workspace = true
+documentation.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[profile.bench]
+debug = false
+incremental = false
+lto = false
+opt-level = 3
+
+# Workspace profiles (applied to all members)
+[profile.dev]
+debug = true
+incremental = true
+opt-level = 1
+overflow-checks = true
+
+[profile.release]
+codegen-units = 1
+debug = false
+incremental = false
+# LTO disabled: prebuilt libguardrail_ffi.a has no bitcode; fat LTO would fail at link.
+lto = false
+opt-level = 3
+panic = "abort"
+strip = "symbols"
+
+# Profile for PyO3 extension modules (optimized for size and performance)
+[profile.release-python]
+codegen-units = 1
+inherits = "release"
+# LTO follows release (false) so we can link prebuilt libguardrail_ffi.a
+lto = false
+opt-level = "s"  # Optimize for size (important for Python extensions)
+panic = "abort"
+strip = "symbols"
+
+[profile.test]
+debug = true
+incremental = true
+opt-level = 1
+
+[target.'cfg(all(unix, target_arch = "x86_64"))'.dependencies]
+jemallocator.workspace = true
+
+[workspace]
+members = [
+  "core",
+  "guardrail_ffi",
+  "python"
+]
+resolver = "2"
+
+# Note: versions only in workspace.dependencies; set features per-crate.
+# Avoid enabling PyO3 features globally to prevent feature unification
+# from affecting non-Python crates. See `python/Cargo.toml` for
+# `pyo3` (extension-module, abi3-py39) and `pyo3-async-runtimes`
+# (tokio-runtime) feature configuration.
+[workspace.dependencies]
+# Core dependencies with consistent versions
+anyhow = "1.0"
+async-trait = "0.1.88"
+# Excel parsing (including XLSB support)
+calamine = "0.26"
+chrono = {version = "0.4", features = ["serde"]}
+# CSV and XML parsing
+csv = "1.3"
+# Document processing
+docx-rs = "0.4"
+futures = "0.3"
+# Internal dependencies
+graphbit-core = {path = "core"}
+# Platform-specific dependencies
+jemallocator = "0.5"
+# Utilities
+lopdf = "0.32"
+mimalloc = {version = "0.1", default-features = false}
+# NAPI-RS bindings for JavaScript
+napi = {version = "2", features = ["async", "serde-json", "napi6"]}
+napi-build = "2"
+napi-derive = "2"
+num_cpus = "1.16"
+pdf-extract = "0.10"
+# Graph and algorithms
+petgraph = "0.6"
+# Python bindings (features set per-crate; no global features here)
+pyo3 = "0.24.1"
+pyo3-async-runtimes = "0.24"
+pythonize = "0.24"
+quick-xml = {version = "0.36", features = ["serialize"]}
+rand = "0.9"
+regex = "1.10"
+reqwest = {version = "0.13", default-features = false, features = ["json", "stream", "rustls"]}
+rusqlite = {version = "0.31", features = ["bundled"]}
+# HTML parsing
+scraper = "0.25"
+serde = {version = "1.0", features = ["derive"]}
+serde_json = "1.0"
+sys-info = "0.9"
+temp-env = "0.3.6"
+tempfile = "3.10.0"
+# Error handling
+thiserror = "2.0"
+tokio = {version = "1.38", features = ["full"]}
+# Tracing and logging
+tracing = "0.1"
+tracing-subscriber = "0.3.20"
+uuid = {version = "1.8", features = ["v4", "v5", "serde"]}
+
+[workspace.lints.clippy]
+# Set lint groups with proper priority hierarchy
+all = {level = "warn", priority = -1}
+# Async-specific
+async_yields_async = "warn"
+cargo = {level = "warn", priority = -1}
+# Common correctness issues
+inefficient_to_string = "warn"
+# Performance
+large_futures = "warn"
+large_stack_arrays = "warn"
+# Error handling hygiene
+map_unwrap_or = "warn"  # use map_or instead
+match_wildcard_for_single_variants = "warn"
+# Individual lint overrides (higher priority)
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+# Allow some pedantic lints that are too strict for this project
+module_name_repetitions = "allow"
+# API design (important for open source)
+must_use_candidate = "warn"
+nursery = {level = "warn", priority = -1}
+panic = "warn"
+pedantic = {level = "warn", priority = -1}
+redundant_async_block = "warn"
+unnecessary_box_returns = "warn"
+unnecessary_unwrap = "warn"
+# The unwrap problem you mentioned
+unwrap_used = "warn"
+
+# Workspace-wide lints configuration
+[workspace.lints.rust]
+# dead / unreachable code
+dead_code = "warn"
+improper_ctypes = "warn"
+# api hygiene
+missing_docs = "warn"
+# FFI correctness
+no_mangle_generic_items = "warn"
+# styling / naming patterns
+non_camel_case_types = "warn"
+non_snake_case = "warn"
+non_upper_case_globals = "warn"
+overflowing_literals = "warn"
+path_statements = "warn"
+patterns_in_fns_without_body = "warn"
+unconditional_recursion = "warn"
+unreachable_pub = "warn"
+# unsafe warnings
+unused = "warn"
+unused_allocation = "warn"
+unused_comparisons = "warn"
+unused_imports = "warn"
+unused_parens = "warn"
+unused_variables = "warn"
+while_true = "warn"
+
+# Workspace metadata for better tooling support
+[workspace.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[workspace.metadata.release]
+pre-release-replacements = [
+  {file = "CHANGELOG.md", search = "Unreleased", replace = "{{version}}"},
+  {file = "CHANGELOG.md", search = "\\.\\.\\.HEAD", replace = "...{{tag_name}}", exactly = 1},
+  {file = "CHANGELOG.md", search = "ReleaseDate", replace = "{{date}}"},
+  {file = "CHANGELOG.md", search = "<!-- next-header -->", replace = "<!-- next-header -->\n\n## [Unreleased] - ReleaseDate\n", exactly = 1},
+  {file = "CHANGELOG.md", search = "<!-- next-url -->", replace = "<!-- next-url -->\n[Unreleased]: https://github.com/InfinitiBit/graphbit/compare/{{tag_name}}...HEAD", exactly = 1}
+]
+
+[workspace.package]
+authors = ["GraphBit Team"]
+categories = ["development-tools", "api-bindings", "asynchronous"]
+documentation = "https://docs.graphbit.ai"
+edition = "2024"
+homepage = "https://graphbit.ai"
+keywords = ["ai", "automation", "workflow", "agent", "llm"]
+license-file = "LICENSE.md"
+repository = "https://github.com/InfinitiBit/graphbit"
+rust-version = "1.93.0"
+version = "0.6.8"

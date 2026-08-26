@@ -26,9 +26,41 @@ target
 .scripts
 .direnv/
 
-# Vendored third-party reference repositories (cloned via Phase 1 of the
-# Cloud Codes integration; see vendor/README.md). Not part of the build.
-vendor/
+# Vendored third-party repositories — all tracked, each with an idempotent
+# bootstrap.sh that builds a self-contained artifact inside its directory
+# (see vendor/README.md). Source is tracked; build artifacts are not.
+vendor/*
+!vendor/lattice
+!vendor/subnext
+!vendor/mini-swe-agent
+!vendor/gpt-researcher
+!vendor/deepagents
+!vendor/langgraph
+!vendor/graphbit
+!vendor/temporal
+
+# lattice — structural code-audit engine (powers /codeaudit)
+vendor/lattice/.venv/
+vendor/lattice/**/__pycache__/
+vendor/lattice/**/*.pyc
+vendor/lattice/*.egg-info/
+vendor/lattice/src/*.egg-info/
+
+# subnext — Dynamic Context Runtime reference implementation (dcr)
+vendor/subnext/bin/
+vendor/subnext/target/
+
+# python-venv sidecars (mini-swe-agent, gpt-researcher, deepagents, langgraph)
+vendor/*/.venv/
+vendor/**/__pycache__/
+vendor/**/*.pyc
+vendor/**/*.egg-info/
+vendor/**/dist/
+vendor/**/.pytest_cache/
+
+# graphbit / temporal — rust + go build output
+vendor/graphbit/target/
+vendor/temporal/bin/
 
 # Local dev files
 openhack-dev

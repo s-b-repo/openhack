@@ -1,0 +1,45 @@
+[project]
+name = "lattice"
+version = "0.1.0"
+description = "Multi-domain structural-analysis engine (LSP hypernetwork + RRT)"
+requires-python = ">=3.11"
+dependencies = ["multilspy>=0.0.10"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "sympy>=1.12", "mcp>=1.2"]
+cpp = ["libclang>=16.0"]        # C++/CUDA frontend (ingest/cpp.py)
+symbolic = ["sympy>=1.12"]      # sympy legs (solidity_symbolic, symbolic_conservation)
+mcp = ["mcp>=1.2"]              # MCP server for coding agents (lattice.mcp)
+
+[project.scripts]
+lattice = "lattice.cli.main:main"
+lattice-mcp = "lattice.mcp.__main__:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+lattice = [
+    "_bridges/goast/*.go",
+    "_bridges/jsast/*.js",
+    "_bridges/jsast/*.json",
+    "_bridges/rubyast/*.rb",
+    "_bridges/rustast/Cargo.toml",
+    "_bridges/rustast/Cargo.lock",
+    "_bridges/rustast/src/*.rs",
+    "_bridges/rustgraph/Cargo.toml",
+    "_bridges/rustgraph/Cargo.lock",
+    "_bridges/rustgraph/src/*.rs",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+markers = [
+    "integration: touches external systems (LSP/recall)",
+    "accuracy: baseline-diff gate — measures every detector against tests/accuracy_baseline.json (set FOOTINGS_ACCURACY_GATE=1 to run)",
+]

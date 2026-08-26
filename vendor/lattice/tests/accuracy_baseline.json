@@ -1,0 +1,369 @@
+{
+  "aggregate": {
+    "f1": 1.0,
+    "macro_precision": 1.0,
+    "macro_recall": 1.0,
+    "total_fp": 0,
+    "total_tp": 378
+  },
+  "corpora": {
+    "openzeppelin": {
+      "path": "/home/kali/.footings-corpus/oz/contracts",
+      "present": true
+    },
+    "smartbugs": {
+      "path": "/home/kali/.smartbugs/dataset",
+      "present": true
+    },
+    "solidifi": {
+      "path": "/home/kali/.footings-corpus/solidifi/buggy_contracts",
+      "present": true
+    }
+  },
+  "detectors": {
+    "c_taint.command_injection": {
+      "corpus": {},
+      "unit": {
+        "fires_pass": 9,
+        "other": 3,
+        "silent_clean": 1,
+        "toggles_genuine": 1
+      }
+    },
+    "c_unions": {
+      "corpus": {},
+      "unit": {
+        "fires_pass": 0,
+        "other": 3,
+        "silent_clean": 0,
+        "toggles_genuine": 0
+      }
+    },
+    "go_taint.command_injection": {
+      "corpus": {},
+      "unit": {
+        "fires_pass": 11,
+        "other": 1,
+        "silent_clean": 5,
+        "toggles_genuine": 1
+      }
+    },
+    "hunt": {
+      "corpus": {},
+      "unit": {
+        "fires_pass": 0,
+        "other": 13,
+        "silent_clean": 0,
+        "toggles_genuine": 0
+      }
+    },
+    "js_arbitrary_call": {
+      "corpus": {},
+      "unit": {
+        "fires_pass": 19,
+        "other": 3,
+        "silent_clean": 10,
+        "toggles_genuine": 1
+      }
+    },
+    "logic": {
+      "corpus": {},
+      "unit": {
+        "fires_pass": 0,
+        "other": 14,
+        "silent_clean": 0,
+        "toggles_genuine": 0
+      }
+    },
+    "python_locks": {
+      "corpus": {},
+      "unit": {
+        "fires_pass": 0,
+        "other": 3,
+        "silent_clean": 0,
+        "toggles_genuine": 0
+      }
+    },
+    "python_resource": {
+      "corpus": {},
+      "unit": {
+        "fires_pass": 0,
+        "other": 4,
+        "silent_clean": 0,
+        "toggles_genuine": 0
+      }
+    },
+    "python_taint.command_injection": {
+      "corpus": {},
+      "unit": {
+        "fires_pass": 11,
+        "other": 1,
+        "silent_clean": 9,
+        "toggles_genuine": 1
+      }
+    },
+    "ruby_taint.command_injection": {
+      "corpus": {},
+      "unit": {
+        "fires_pass": 11,
+        "other": 2,
+        "silent_clean": 7,
+        "toggles_genuine": 1
+      }
+    },
+    "rust_taint.command_injection": {
+      "corpus": {},
+      "unit": {
+        "fires_pass": 10,
+        "other": 1,
+        "silent_clean": 6,
+        "toggles_genuine": 1
+      }
+    },
+    "security": {
+      "corpus": {},
+      "unit": {
+        "fires_pass": 0,
+        "other": 42,
+        "silent_clean": 0,
+        "toggles_genuine": 0
+      }
+    },
+    "solidity.arbitrary_call": {
+      "corpus": {},
+      "unit": {
+        "fires_pass": 7,
+        "other": 4,
+        "silent_clean": 6,
+        "toggles_genuine": 0
+      }
+    },
+    "solidity.audit": {
+      "corpus": {
+        "openzeppelin.fp_ceiling": {
+          "corpus_present": true,
+          "files_scanned": 248,
+          "highsev_fp": 2,
+          "highsev_fp_ceiling": 3,
+          "precise_fp": 0,
+          "precise_fp_ceiling": 0
+        },
+        "smartbugs.access_control": {
+          "expected": 12,
+          "expected_kinds": [
+            "tx_origin_auth",
+            "unprotected_delegatecall",
+            "unprotected_selfdestruct",
+            "unprotected_state_write"
+          ],
+          "floor": 12,
+          "fn": 0,
+          "fp": 0,
+          "recall": 0.6666666666666666,
+          "total_files": 18,
+          "tp": 12
+        },
+        "smartbugs.arithmetic": {
+          "expected": 13,
+          "expected_kinds": [
+            "unchecked_arithmetic"
+          ],
+          "floor": 13,
+          "fn": 0,
+          "fp": 0,
+          "recall": 0.9333333333333333,
+          "total_files": 15,
+          "tp": 14
+        },
+        "smartbugs.bad_randomness": {
+          "expected": 8,
+          "expected_kinds": [
+            "weak_randomness"
+          ],
+          "floor": 8,
+          "fn": 0,
+          "fp": 0,
+          "recall": 1.0,
+          "total_files": 8,
+          "tp": 8
+        },
+        "smartbugs.denial_of_service": {
+          "expected": 5,
+          "expected_kinds": [
+            "dos_gas_griefing",
+            "dos_push_payment",
+            "dos_unbounded_loop"
+          ],
+          "floor": 5,
+          "fn": 0,
+          "fp": 0,
+          "recall": 0.8333333333333334,
+          "total_files": 6,
+          "tp": 5
+        },
+        "smartbugs.other": {
+          "expected": 3,
+          "expected_kinds": [
+            "contains_assembly",
+            "uninitialized_storage_pointer"
+          ],
+          "floor": 3,
+          "fn": 0,
+          "fp": 0,
+          "recall": 1.0,
+          "total_files": 3,
+          "tp": 3
+        },
+        "smartbugs.reentrancy": {
+          "expected": 30,
+          "expected_kinds": [
+            "reentrancy"
+          ],
+          "floor": 30,
+          "fn": 0,
+          "fp": 0,
+          "recall": 0.967741935483871,
+          "total_files": 31,
+          "tp": 30
+        },
+        "smartbugs.time_manipulation": {
+          "expected": 4,
+          "expected_kinds": [
+            "timestamp_dependence"
+          ],
+          "floor": 4,
+          "fn": 0,
+          "fp": 0,
+          "recall": 0.8,
+          "total_files": 5,
+          "tp": 4
+        },
+        "smartbugs.unchecked_low_level_calls": {
+          "expected": 52,
+          "expected_kinds": [
+            "unchecked_external_call"
+          ],
+          "floor": 52,
+          "fn": 0,
+          "fp": 0,
+          "recall": 1.0,
+          "total_files": 52,
+          "tp": 52
+        },
+        "solidifi.Overflow-Underflow": {
+          "expected": 50,
+          "expected_kinds": [
+            "unchecked_arithmetic"
+          ],
+          "floor": 50,
+          "fn": 0,
+          "fp": 0,
+          "recall": 1.0,
+          "total_files": 50,
+          "tp": 50
+        },
+        "solidifi.Re-entrancy": {
+          "expected": 50,
+          "expected_kinds": [
+            "reentrancy"
+          ],
+          "floor": 50,
+          "fn": 0,
+          "fp": 0,
+          "recall": 1.0,
+          "total_files": 50,
+          "tp": 50
+        },
+        "solidifi.Timestamp-Dependency": {
+          "expected": 50,
+          "expected_kinds": [
+            "timestamp_dependence"
+          ],
+          "floor": 50,
+          "fn": 0,
+          "fp": 0,
+          "recall": 1.0,
+          "total_files": 50,
+          "tp": 50
+        },
+        "solidifi.Unhandled-Exceptions": {
+          "expected": 50,
+          "expected_kinds": [
+            "unchecked_external_call"
+          ],
+          "floor": 50,
+          "fn": 0,
+          "fp": 0,
+          "recall": 1.0,
+          "total_files": 50,
+          "tp": 50
+        },
+        "solidifi.tx.origin": {
+          "expected": 50,
+          "expected_kinds": [
+            "tx_origin_auth"
+          ],
+          "floor": 50,
+          "fn": 0,
+          "fp": 0,
+          "recall": 1.0,
+          "total_files": 50,
+          "tp": 50
+        }
+      },
+      "unit": {
+        "fires_pass": 0,
+        "other": 40,
+        "silent_clean": 0,
+        "toggles_genuine": 0
+      }
+    },
+    "solidity.donation": {
+      "corpus": {},
+      "unit": {
+        "fires_pass": 1,
+        "other": 2,
+        "silent_clean": 1,
+        "toggles_genuine": 1
+      }
+    },
+    "solidity.oracle_taint": {
+      "corpus": {},
+      "unit": {
+        "fires_pass": 1,
+        "other": 18,
+        "silent_clean": 2,
+        "toggles_genuine": 1
+      }
+    },
+    "solidity.symbolic": {
+      "corpus": {},
+      "unit": {
+        "fires_pass": 0,
+        "other": 16,
+        "silent_clean": 0,
+        "toggles_genuine": 0
+      }
+    },
+    "solidity.typed": {
+      "corpus": {},
+      "unit": {
+        "fires_pass": 0,
+        "other": 7,
+        "silent_clean": 0,
+        "toggles_genuine": 0
+      }
+    },
+    "taxonomy": {
+      "corpus": {},
+      "unit": {
+        "fires_pass": 0,
+        "other": 4,
+        "silent_clean": 0,
+        "toggles_genuine": 0
+      }
+    }
+  },
+  "lattice_git_sha": "30155798b10a2f665ed8fbd5c72613509279e3d5",
+  "run_id": "2026-08-06T13:14:36.935608+00:00"
+}

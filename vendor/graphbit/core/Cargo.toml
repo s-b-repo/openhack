@@ -1,0 +1,69 @@
+[dependencies]
+pyo3 = {workspace = true, optional = true}
+# GuardRail: prebuilt libguardrail_ffi.a only (see vendor/guardrail/README.md).
+guardrail_ffi = { path = "../guardrail_ffi" }
+anyhow.workspace = true
+async-trait.workspace = true
+calamine.workspace = true
+chrono.workspace = true
+csv.workspace = true
+docx-rs.workspace = true
+futures.workspace = true
+lopdf.workspace = true
+pdf-extract.workspace = true
+petgraph.workspace = true
+quick-xml.workspace = true
+rand.workspace = true
+regex.workspace = true
+reqwest.workspace = true
+rusqlite.workspace = true
+scraper.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+uuid.workspace = true
+
+[features]
+default = []
+python = ["pyo3"]
+
+[lints]
+workspace = true
+
+[package]
+description = "Core engine for GraphBit agentic workflow automation"
+name = "graphbit-core"
+authors.workspace = true
+categories.workspace = true
+documentation.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license-file.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+# Other Unix systems: jemalloc (broad compatibility)
+[target.'cfg(all(unix, not(any(target_os = "linux", target_os = "macos"))))']
+
+[target.'cfg(all(unix, target_arch = "x86_64", not(any(target_os = "linux", target_os = "macos"))))'.dependencies]
+jemallocator.workspace = true
+
+
+
+[target.'cfg(all(target_os = "linux", target_arch = "x86_64"))'.dependencies]
+jemallocator.workspace = true
+
+# macOS: mimalloc
+[target.'cfg(target_os = "macos")']
+
+[target.'cfg(target_os = "macos")'.dependencies]
+mimalloc.workspace = true
+
+# Windows: mimalloc
+# [target.'cfg(target_os = "windows")'.dependencies]
+# mimalloc.workspace = true

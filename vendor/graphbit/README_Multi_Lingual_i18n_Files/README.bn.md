@@ -1,0 +1,301 @@
+<div align="center">
+
+# GraphBit - উচ্চ কর্মক্ষমতা এজেন্টিক ফ্রেমওয়ার্ক (বাংলা)
+
+<p align="center">
+    <img src="../assets/GraphBit_Final_GB_Github_GIF.gif" style="max-width: 600px; height: auto;" alt="Logo" />
+</p>
+<p align="center">
+    <img alt="GraphBit - Developer-first, enterprise-grade LLM framework. | Product Hunt" loading="lazy" width="250" height="54" decoding="async" data-nimg="1" class="w-auto h-[54px] max-w-[250px]" style="color:transparent" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1004951&amp;theme=light&amp;t=1757340621693"> <img alt="GraphBit - Developer-first, enterprise-grade LLM framework. | Product Hunt" loading="lazy" width="250" height="54" decoding="async" data-nimg="1" class="w-auto h-[54px] max-w-[250px]" style="color:transparent" src="https://api.producthunt.com/widgets/embed-image/v1/top-post-badge.svg?post_id=1004951&amp;theme=light&amp;period=daily&amp;t=1757933101511">
+</p>
+
+<p align="center">
+    <a href="https://graphbit.ai/">Website</a> |
+    <a href="https://docs.graphbit.ai/">Docs</a> |
+    <a href="https://discord.com/invite/FMhgB3paMD">Discord</a>
+    <br /><br />
+</p>
+
+<p align="center">
+    <a href="https://trendshift.io/repositories/14884" target="_blank"><img src="https://trendshift.io/api/badge/repositories/14884" alt="InfinitiBit%2Fgraphbit | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
+    <br>
+    <a href="https://pepy.tech/projects/graphbit"><img src="https://static.pepy.tech/personalized-badge/graphbit?period=total&units=INTERNATIONAL_SYSTEM&left_color=GREY&right_color=GREEN&left_text=Downloads" alt="PyPI Downloads"/></a>
+</p>
+
+<p align="center">
+    <a href="https://pypi.org/project/graphbit/"><img src="https://img.shields.io/pypi/v/graphbit?color=blue&label=PyPI" alt="PyPI"></a>
+    <a href="https://pypi.org/project/graphbit/"><img src="https://img.shields.io/pypi/dm/graphbit?color=blue&label=Downloads" alt="PyPI Downloads"></a>
+    <a href="https://github.com/InfinitiBit/graphbit/actions/workflows/update-docs.yml"><img src="https://img.shields.io/github/actions/workflow/status/InfinitiBit/graphbit/update-docs.yml?branch=main&label=Build" alt="Build Status"></a>
+    <a href="https://github.com/InfinitiBit/graphbit/blob/main/CONTRIBUTING.md"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome"></a>
+    <br>
+    <a href="https://www.rust-lang.org"><img src="https://img.shields.io/badge/rust-1.70+-orange.svg?logo=rust" alt="Rust Version"></a>
+    <a href="https://www.python.org"><img src="https://img.shields.io/badge/python-3.9--3.13-blue.svg?logo=python&logoColor=white" alt="Python Version"></a>
+    <a href="https://github.com/InfinitiBit/graphbit/blob/main/LICENSE.md"><img src="https://img.shields.io/badge/license-Custom-lightgrey.svg" alt="License"></a>
+
+</p>
+<p align="center">
+    <a href="https://www.youtube.com/@graphbitAI"><img src="https://img.shields.io/badge/YouTube-FF0000?logo=youtube&logoColor=white" alt="YouTube"></a>
+    <a href="https://x.com/graphbit_ai"><img src="https://img.shields.io/badge/X-000000?logo=x&logoColor=white" alt="X"></a>
+    <a href="https://discord.com/invite/FMhgB3paMD"><img src="https://img.shields.io/badge/Discord-7289da?logo=discord&logoColor=white" alt="Discord"></a>
+    <a href="https://www.linkedin.com/showcase/graphbitai/"><img src="https://img.shields.io/badge/LinkedIn-0077B5?logo=linkedin&logoColor=white" alt="LinkedIn"></a>
+</p>
+
+**Rust পারফরম্যান্স সহ টাইপ-সেফ AI এজেন্ট ওয়ার্কফ্লো**
+
+</div>
+
+---
+
+🚧 **অনুবাদ চলছে** - এই নথিটি ইংরেজি থেকে অনুবাদ করা হচ্ছে।
+
+📖 **[Read in English](../README.md)** | **[ইংরেজিতে পড়ুন](../README.md)**
+
+---
+
+**অন্যান্য ভাষায় পড়ুন**: [🇨🇳 简体中文](README.zh-CN.md) | [🇨🇳 繁體中文](README.zh-TW.md) | [🇪🇸 Español](README.es.md) | [🇫🇷 Français](README.fr.md) | [🇩🇪 Deutsch](README.de.md) | [🇯🇵 日本語](README.ja.md) | [🇰🇷 한국어](README.ko.md) | [🇮🇳 हिन्दी](README.hi.md) | [🇸🇦 العربية](README.ar.md) | [🇮🇹 Italiano](README.it.md) | [🇧🇷 Português](README.pt-BR.md) | [🇷🇺 Русский](README.ru.md)
+
+---
+
+## GraphBit সম্পর্কে
+
+GraphBit হল একটি উৎস উপলব্ধ এজেন্টিক AI ফ্রেমওয়ার্ক যা ডেভেলপারদের জন্য যাদের নির্ধারণমূলক, সমসাময়িক এবং কম ওভারহেড এক্সিকিউশন প্রয়োজন।
+
+## কেন GraphBit?
+
+দক্ষতা নির্ধারণ করে কে স্কেল করতে পারে। GraphBit তৈরি করা হয়েছে ডেভেলপারদের জন্য যাদের ওভারহেড ছাড়াই নির্ধারণমূলক, সমসাময়িক এবং অতি-দক্ষ AI এক্সিকিউশন প্রয়োজন।
+
+Rust কোর এবং ন্যূনতম Python লেয়ার দিয়ে নির্মিত, GraphBit অন্যান্য ফ্রেমওয়ার্কের তুলনায় 68× কম CPU ব্যবহার এবং 140× কম মেমরি ফুটপ্রিন্ট প্রদান করে, সমান বা বেশি থ্রুপুট বজায় রেখে।
+
+এটি সমান্তরালে চলা মাল্টি-এজেন্ট ওয়ার্কফ্লো চালিত করে, ধাপগুলির মধ্যে মেমরি সংরক্ষণ করে, ব্যর্থতা থেকে স্ব-পুনরুদ্ধার করে এবং 100% টাস্ক নির্ভরযোগ্যতা নিশ্চিত করে। GraphBit প্রোডাকশন ওয়ার্কলোডের জন্য তৈরি, এন্টারপ্রাইজ AI সিস্টেম থেকে কম-সম্পদ এজ ডিপ্লয়মেন্ট পর্যন্ত।
+
+## মূল বৈশিষ্ট্য
+
+- **টুল নির্বাচন** - LLM বর্ণনার উপর ভিত্তি করে বুদ্ধিমানভাবে টুল নির্বাচন করে
+- **টাইপ নিরাপত্তা** - প্রতিটি এক্সিকিউশন লেয়ারে শক্তিশালী টাইপিং
+- **নির্ভরযোগ্যতা** - সার্কিট ব্রেকার, পুনঃপ্রচেষ্টা নীতি, ত্রুটি পরিচালনা এবং ব্যর্থতা পুনরুদ্ধার
+- **মাল্টি-LLM সমর্থন** - OpenAI, Azure OpenAI, Anthropic, OpenRouter, DeepSeek, Replicate, Ollama, TogetherAI এবং আরও
+- **সম্পদ ব্যবস্থাপনা** - সমসাময়িকতা নিয়ন্ত্রণ এবং মেমরি অপটিমাইজেশন
+- **পর্যবেক্ষণযোগ্যতা** - অন্তর্নির্মিত ট্রেসিং, কাঠামোবদ্ধ লগ এবং পারফরম্যান্স মেট্রিক্স
+
+## বেঞ্চমার্ক
+
+GraphBit বৃহৎ পরিসরে দক্ষতার জন্য তৈরি করা হয়েছিল, তাত্ত্বিক দাবির জন্য নয়, বরং পরিমাপিত ফলাফলের জন্য।
+
+আমাদের অভ্যন্তরীণ বেঞ্চমার্ক স্যুট অভিন্ন কাজের চাপে GraphBit-কে শীর্ষস্থানীয় Python-ভিত্তিক এজেন্ট ফ্রেমওয়ার্কের সাথে তুলনা করেছে।
+
+| মেট্রিক             | GraphBit        | অন্যান্য ফ্রেমওয়ার্ক | লাভ                      |
+|:--------------------|:---------------:|:----------------:|:-------------------------|
+| CPU ব্যবহার         | 1.0× বেসলাইন   | 68.3× বেশি       | ~68× CPU                 |
+| মেমরি ফুটপ্রিন্ট   | 1.0× বেসলাইন   | 140× বেশি        | ~140× মেমরি              |
+| এক্সিকিউশন গতি     | ≈ সমান / দ্রুত | —                | সামঞ্জস্যপূর্ণ থ্রুপুট |
+| নির্ধারণবাদ         | 100% সফলতা     | পরিবর্তনশীল      | নিশ্চিত নির্ভরযোগ্যতা   |
+
+GraphBit ধারাবাহিকভাবে LLM কল, টুল ইনভোকেশন এবং মাল্টি-এজেন্ট চেইনে উৎপাদন-গ্রেড দক্ষতা প্রদান করে।
+
+### বেঞ্চমার্ক ডেমো
+
+<div align="center">
+  <a href="https://www.youtube.com/watch?v=MaCl5oENeAY">
+    <img src="https://img.youtube.com/vi/MaCl5oENeAY/maxresdefault.jpg" alt="GraphBit Benchmark Demo" style="max-width: 600px; height: auto;">
+  </a>
+  <p><em>GraphBit বেঞ্চমার্ক ডেমো দেখুন</em></p>
+</div>
+
+## কখন GraphBit ব্যবহার করবেন
+
+আপনার যদি নিম্নলিখিত প্রয়োজন হয় তবে GraphBit বেছে নিন:
+
+- উৎপাদন-গ্রেড মাল্টি-এজেন্ট সিস্টেম যা লোডের অধীনে ভেঙে পড়ে না
+- টাইপ-সেফ এক্সিকিউশন এবং পুনরুৎপাদনযোগ্য আউটপুট
+- হাইব্রিড বা স্ট্রিমিং AI অ্যাপ্লিকেশনের জন্য রিয়েল-টাইম অর্কেস্ট্রেশন
+- Rust-স্তরের দক্ষতা এবং Python-স্তরের এরগোনমিক্স
+
+আপনি যদি প্রোটোটাইপের বাইরে স্কেলিং করছেন বা রানটাইম নির্ধারণবাদের যত্ন নেন, তাহলে GraphBit আপনার জন্য।
+
+## দ্রুত শুরু
+
+### ইনস্টলেশন
+
+ভার্চুয়াল এনভায়রনমেন্ট ব্যবহার করার পরামর্শ দেওয়া হয়।
+
+```bash
+pip install graphbit
+```
+
+### দ্রুত শুরু ভিডিও টিউটোরিয়াল
+
+<div align="center">
+  <a href="https://youtu.be/ti0wbHFKKFM?si=hnxi-1W823z5I_zs">
+    <img src="https://img.youtube.com/vi/ti0wbHFKKFM/maxresdefault.jpg" alt="GraphBit Quick Start Tutorial" style="max-width: 600px; height: auto;">
+  </a>
+  <p><em>PyPI এর মাধ্যমে GraphBit ইনস্টল করুন | সম্পূর্ণ উদাহরণ এবং রান গাইড টিউটোরিয়াল দেখুন</em></p>
+</div>
+
+
+### পরিবেশ সেটআপ
+
+আপনার প্রকল্পে ব্যবহার করতে চান এমন API কীগুলি সেট আপ করুন:
+```bash
+# OpenAI (ঐচ্ছিক – OpenAI মডেল ব্যবহার করলে প্রয়োজনীয়)
+export OPENAI_API_KEY=your_openai_api_key_here
+
+# Anthropic (ঐচ্ছিক – Anthropic মডেল ব্যবহার করলে প্রয়োজনীয়)
+export ANTHROPIC_API_KEY=your_anthropic_api_key_here
+```
+
+> **নিরাপত্তা নোট**: কখনও সংস্করণ নিয়ন্ত্রণে API কী কমিট করবেন না। সর্বদা পরিবেশ ভেরিয়েবল বা নিরাপদ গোপন ব্যবস্থাপনা ব্যবহার করুন।
+
+### মৌলিক ব্যবহার
+```python
+import os
+
+from graphbit import LlmConfig, Executor, Workflow, Node, tool
+
+# আরম্ভ এবং কনফিগার করুন
+config = LlmConfig.openai(os.getenv("OPENAI_API_KEY"), "gpt-4o-mini")
+
+# এক্সিকিউটর তৈরি করুন
+executor = Executor(config)
+
+# LLM নির্বাচনের জন্য স্পষ্ট বর্ণনা সহ সরঞ্জাম তৈরি করুন
+@tool(_description="যেকোনো শহরের বর্তমান আবহাওয়ার তথ্য পান")
+def get_weather(location: str) -> dict:
+    return {"location": location, "temperature": 22, "condition": "sunny"}
+
+@tool(_description="গাণিতিক গণনা সম্পাদন করুন এবং ফলাফল ফেরত দিন")
+def calculate(expression: str) -> str:
+    return f"Result: {eval(expression)}"
+
+# ওয়ার্কফ্লো তৈরি করুন
+workflow = Workflow("Analysis Pipeline")
+
+# এজেন্ট নোড তৈরি করুন
+smart_agent = Node.agent(
+    name="Smart Agent",
+    prompt="What's the weather in Paris and calculate 15 + 27?",
+    system_prompt="You are an assistant skilled in weather lookup and math calculations. Use tools to answer queries accurately.",
+    tools=[get_weather, calculate]
+)
+
+processor = Node.agent(
+    name="Data Processor",
+    prompt="Process the results obtained from Smart Agent.",
+    system_prompt="""You process and organize results from other agents.
+
+    - Summarize and clarify key points
+    - Structure your output for easy reading
+    - Focus on actionable insights
+    """
+)
+
+# সংযুক্ত এবং সম্পাদন করুন
+id1 = workflow.add_node(smart_agent)
+id2 = workflow.add_node(processor)
+workflow.connect(id1, id2)
+
+result = executor.execute(workflow)
+print(f"Workflow completed: {result.is_success()}")
+print("\nSmart Agent Output: \n", result.get_node_output("Smart Agent"))
+print("\nData Processor Output: \n", result.get_node_output("Data Processor"))
+```
+
+## পর্যবেক্ষণযোগ্যতা এবং ট্র্যাকিং
+
+GraphBit Tracer ন্যূনতম কনফিগারেশনের সাথে LLM কল এবং AI ওয়ার্কফ্লো ক্যাপচার এবং মনিটর করে। এটি আপনার কোড পরিবর্তন না করে প্রম্পট, প্রতিক্রিয়া, টোকেন ব্যবহার, লেটেন্সি এবং ত্রুটি ট্র্যাক করতে GraphBit LLM ক্লায়েন্ট এবং ওয়ার্কফ্লো এক্সিকিউটরগুলি মোড়ানো করে।
+
+<div align="center">
+  <a href="https://www.youtube.com/watch?v=nzwrxSiRl2U">
+    <img src="https://img.youtube.com/vi/nzwrxSiRl2U/maxresdefault.jpg" alt="GraphBit Observability & Tracing" style="max-width: 600px; height: auto;">
+  </a>
+  <p><em>GraphBit পর্যবেক্ষণযোগ্যতা এবং ট্র্যাকিং টিউটোরিয়াল দেখুন</em></p>
+</div>
+
+## উচ্চ-স্তরের আর্কিটেকচার
+
+<p align="center">
+  <img src="../assets/architecture.svg" height="250" alt="GraphBit Architecture">
+</p>
+
+নির্ভরযোগ্যতা এবং কর্মক্ষমতার জন্য তিন-স্তরের ডিজাইন:
+- **Rust কোর** - ওয়ার্কফ্লো ইঞ্জিন, এজেন্ট এবং LLM প্রদানকারী
+- **অর্কেস্ট্রেশন লেয়ার** - প্রকল্প ব্যবস্থাপনা এবং সম্পাদন
+- **Python API** - অ্যাসিঙ্ক সমর্থন সহ PyO3 বাইন্ডিং
+
+## Python API ইন্টিগ্রেশন
+
+GraphBit এজেন্টিক ওয়ার্কফ্লো তৈরি এবং একীভূত করার জন্য একটি সমৃদ্ধ Python API প্রদান করে:
+
+- **LLM ক্লায়েন্ট** - মাল্টি-প্রোভাইডার LLM ইন্টিগ্রেশন (OpenAI, Anthropic, Azure এবং আরও)
+- **ওয়ার্কফ্লো** - স্টেট ম্যানেজমেন্ট সহ মাল্টি-এজেন্ট ওয়ার্কফ্লো গ্রাফ সংজ্ঞায়িত এবং পরিচালনা করুন
+- **নোড** - এজেন্ট নোড, টুল নোড এবং কাস্টম ওয়ার্কফ্লো উপাদান
+- **এক্সিকিউটর** - কনফিগারেশন ম্যানেজমেন্ট সহ ওয়ার্কফ্লো এক্সিকিউশন ইঞ্জিন
+- **টুল সিস্টেম** - এজেন্ট টুলের জন্য ফাংশন ডেকোরেটর, রেজিস্ট্রি এবং এক্সিকিউশন ফ্রেমওয়ার্ক
+- **ওয়ার্কফ্লো ফলাফল** - মেটাডেটা, টাইমিং এবং আউটপুট অ্যাক্সেস সহ এক্সিকিউশন ফলাফল
+- **এম্বেডিং** - সিমান্টিক অনুসন্ধান এবং পুনরুদ্ধারের জন্য ভেক্টর এম্বেডিং
+- **ওয়ার্কফ্লো কনটেক্সট** - ওয়ার্কফ্লো এক্সিকিউশন জুড়ে শেয়ার্ড স্টেট এবং ভেরিয়েবল
+- **ডকুমেন্ট লোডার** - একাধিক ফরম্যাট (PDF, DOCX, TXT, JSON, CSV, XML, HTML) থেকে ডকুমেন্ট লোড এবং পার্স করুন
+- **টেক্সট স্প্লিটার** - ডকুমেন্টগুলিকে চাঙ্কে বিভক্ত করুন (অক্ষর, টোকেন, বাক্য, পুনরাবৃত্তিমূলক)
+
+ক্লাস, মেথড এবং ব্যবহারের উদাহরণের সম্পূর্ণ তালিকার জন্য, [Python API রেফারেন্স](docs/api-reference/python-api.md) দেখুন।
+
+## ডকুমেন্টেশন
+
+সম্পূর্ণ ডকুমেন্টেশনের জন্য, দেখুন: [https://docs.graphbit.ai/](https://docs.graphbit.ai/)
+
+## ইকোসিস্টেম এবং এক্সটেনশন
+
+GraphBit এর মডুলার আর্কিটেকচার বাহ্যিক ইন্টিগ্রেশন সমর্থন করে:
+
+| বিভাগ             | উদাহরণ                                                                                       |
+|:------------------|:----------------------------------------------------------------------------------------------|
+| LLM প্রদানকারী    | OpenAI, Anthropic, Azure OpenAI, DeepSeek, Together, Ollama, OpenRouter, Fireworks, Mistral AI, Replicate, Perplexity, HuggingFace, AI21, Bytedance, xAI, এবং আরও |
+| ভেক্টর স্টোর      | Pinecone, Qdrant, Chroma, Milvus, Weaviate, FAISS, Elasticsearch, AstraDB, Redis, এবং আরও   |
+| ডেটাবেস          | PostgreSQL (PGVector), MongoDB, MariaDB, IBM DB2, Redis, এবং আরও                             |
+| ক্লাউড প্ল্যাটফর্ম | AWS (Boto3), Azure, Google Cloud Platform, এবং আরও                                           |
+| সার্চ API         | Serper, Google Search, GitHub Search, GitLab Search, এবং আরও                                 |
+| এম্বেডিং মডেল    | OpenAI Embeddings, Voyage AI, এবং আরও                                                        |
+
+এক্সটেনশনগুলি কমিউনিটি দ্বারা বিকশিত এবং রক্ষণাবেক্ষণ করা হয়।
+
+<p align="center">
+  <img src="../assets/Ecosystem.png" alt="GraphBit Ecosystem - Stop Choosing, Start Orchestrating" style="max-width: 100%; height: auto;">
+</p>
+
+
+### GraphBit দিয়ে আপনার প্রথম এজেন্ট ওয়ার্কফ্লো তৈরি করা
+
+<div align="center">
+  <a href="https://www.youtube.com/watch?v=gKvkMc2qZcA">
+    <img src="https://img.youtube.com/vi/gKvkMc2qZcA/maxresdefault.jpg" alt="Making Agent Workflow by GraphBit" style="max-width: 600px; height: auto;">
+  </a>
+  <p><em>GraphBit দিয়ে এজেন্ট ওয়ার্কফ্লো তৈরির টিউটোরিয়াল দেখুন</em></p>
+</div>
+
+## GraphBit-এ অবদান
+
+আমরা অবদানকে স্বাগত জানাই। শুরু করতে, ডেভেলপমেন্ট সেটআপ এবং নির্দেশিকাগুলির জন্য অনুগ্রহ করে [Contributing](CONTRIBUTING.md) ফাইল দেখুন।
+
+GraphBit গবেষক এবং প্রকৌশলীদের একটি চমৎকার সম্প্রদায় দ্বারা নির্মিত।
+
+<a href="https://github.com/Infinitibit/graphbit/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=Infinitibit/graphbit" />
+</a>
+
+## নিরাপত্তা
+
+যদি আপনি কোনো নিরাপত্তা দুর্বলতা আবিষ্কার করেন, দয়া করে পাবলিক ইস্যু তৈরি করার পরিবর্তে GitHub Security বা ইমেলের মাধ্যমে দায়িত্বশীলভাবে রিপোর্ট করুন।
+
+বিস্তারিত রিপোর্টিং পদ্ধতি এবং প্রতিক্রিয়া সময়সীমার জন্য, আমাদের [Security Policy](SECURITY.md) দেখুন।
+
+## লাইসেন্স
+
+GraphBit প্রকল্পটি Apache License, Version 2.0-এর অধীনে লাইসেন্সপ্রাপ্ত।
+
+সম্পূর্ণ শর্তাবলি ও নিয়মাবলি জানতে অনুগ্রহ করে [Full License](LICENSE.md) দেখুন।
+
+Copyright © 2023–2026 InfinitiBit GmbH. All rights reserved.
+
+---
+
+**নোট**: এই অনুবাদটি কমিউনিটি দ্বারা রক্ষণাবেক্ষণ করা হয়। যদি আপনি কোনো ত্রুটি খুঁজে পান বা অনুবাদ উন্নত করতে চান, দয়া করে একটি Pull Request জমা দিন।
+

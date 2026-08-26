@@ -1,0 +1,14 @@
+{
+  "vertices": [
+    "ts-sym:a.ts#<module>|module|True|False",
+    "ts-sym:a.ts#foo|function|True|False",
+    "ts-sym:b.ts#<module>|module|True|False",
+    "ts-sym:b.ts#bar|function|True|False",
+    "ts-sym:b.ts#stubbed|function|True|True"
+  ],
+  "edges": [
+    "imports|True|ts-sym:a.ts#<module>>ts-sym:b.ts#<module>",
+    "references|True|ts-sym:a.ts#<module>>ts-sym:b.ts#bar",
+    "references|True|ts-sym:a.ts#foo>ts-sym:b.ts#bar"
+  ]
+}

@@ -1,0 +1,23 @@
+[package]
+name = "dcr"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Dynamic Context Runtime — unlimited external state plus a small, planned working set"
+license = "MIT"
+
+# No dependencies, deliberately. Everything the runtime needs — hashing, text
+# scanning, JSON persistence, argument parsing — is small enough to own, and a
+# specification's reference implementation should be readable end to end.
+[dependencies]
+
+[lib]
+name = "dcr"
+path = "src/lib.rs"
+
+[[bin]]
+name = "dcr"
+path = "src/main.rs"
+
+[profile.release]
+opt-level = 3

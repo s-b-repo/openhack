@@ -1,0 +1,58 @@
+[dependencies]
+graphbit-core = {workspace = true, features = ["python"]}
+uuid = {workspace = true, features = ["v4"]}
+chrono.workspace = true
+futures.workspace = true
+num_cpus.workspace = true
+pythonize.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+# System information and monitoring
+sys-info.workspace = true
+tokio.workspace = true
+# Production-grade logging and tracing
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[dependencies.pyo3]
+features = ["extension-module", "abi3-py39"]
+workspace = true
+
+[dependencies.pyo3-async-runtimes]
+features = ["tokio-runtime"]
+workspace = true
+
+[features]
+cli = []
+default = []
+# Production features
+production = ["tracing-subscriber/json"]
+# Performance profiling features
+profiling = ["tracing-subscriber/env-filter"]
+
+[lib]
+crate-type = ["cdylib"]
+name = "graphbit"
+
+[lints]
+workspace = true
+
+[package]
+description = "Production-grade Python bindings for GraphBit agentic workflow automation"
+name = "graphbit"
+publish = false
+authors.workspace = true
+categories.workspace = true
+documentation.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+
+# Use jemallocator only on native unix targets (not cross-compiled ones)
+[target.'cfg(all(unix, target_arch = "x86_64"))'.dependencies]
+jemallocator.workspace = true

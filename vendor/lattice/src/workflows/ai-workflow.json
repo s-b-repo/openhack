@@ -1,0 +1,15 @@
+{
+  "workflow": {
+    "name": "ai-assessment",
+    "steps": [
+      {
+        "agent": "build",
+        "task": "security-assessment",
+        "config": {
+          "targets": ["/home/kali/Pictures/Lattice-main"],
+          "mcp_servers": ["hexstrike", "pentest-ai"]
+        }
+      }
+    ]
+  }
+}

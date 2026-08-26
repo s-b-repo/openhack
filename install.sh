@@ -214,6 +214,52 @@ install_onlyoffice(){
     log "OnlyOffice → enable: openhack config set mcp.onlyoffice.enabled true"
 }
 
+install_lattice(){
+    # The structural code-audit engine ships vendored in the repo — bootstrap its
+    # self-contained venv so /codeaudit works with no global install. Idempotent.
+    local lattice_dir
+    lattice_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/vendor/lattice"
+    if [ ! -d "$lattice_dir" ]; then
+        warn "vendor/lattice missing from this checkout — skipping (codeaudit falls back to PATH 'lattice')"
+        return 0
+    fi
+    info "Bootstrapping Lattice code-audit engine (vendored, no global install)"
+    run "bash '$lattice_dir/bootstrap.sh'" || warn "Lattice bootstrap failed — /codeaudit will fall back to PATH"
+    log "Lattice → $lattice_dir/.venv/bin/lattice (used automatically by lattice-codeaudit)"
+}
+
+install_dcr(){
+    # The Dynamic Context Runtime ships vendored (vendor/subnext) — build its
+    # self-contained binary so the dcr bridge works with no global install.
+    # Idempotent; resolution prefers the vendored binary over PATH automatically.
+    local subnext_dir
+    subnext_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/vendor/subnext"
+    if [ ! -d "$subnext_dir" ]; then
+        warn "vendor/subnext missing from this checkout — skipping (dcr falls back to PATH 'dcr')"
+        return 0
+    fi
+    info "Bootstrapping Dynamic Context Runtime (vendored, no global install)"
+    run "bash '$subnext_dir/bootstrap.sh'" || warn "dcr bootstrap failed — sessions degrade to full history unless 'dcr' is on PATH"
+    log "dcr → $subnext_dir/bin/dcr (resolved automatically by the session runner)"
+}
+
+install_staged_vendors(){
+    # Opt-in sweep for the staged sidecars (python venvs / rust / go builds).
+    # Heavy and network-bound — enable with OPENHACK_BOOTSTRAP_ALL=1.
+    local root
+    root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    for name in mini-swe-agent gpt-researcher deepagents langgraph graphbit temporal; do
+        local dir="$root/vendor/$name"
+        [ -d "$dir" ] || continue
+        if bash "$dir/bootstrap.sh" --check >/dev/null 2>&1; then
+            log "vendor/$name already bootstrapped"
+            continue
+        fi
+        info "Bootstrapping vendor/$name (staged sidecar)"
+        run "bash '$dir/bootstrap.sh'" || warn "vendor/$name bootstrap failed — it stays a staged component (see vendor/README.md)"
+    done
+}
+
 case "$CHOICE" in
     1) install_hexstrike ;;
     2) install_pentestai ;;
@@ -228,12 +274,22 @@ if [ "$FULL" = "1" ]; then
     install_kali_tools
     install_camoufox
     install_onlyoffice
+    install_lattice
+    install_dcr
+    if [ "${OPENHACK_BOOTSTRAP_ALL:-0}" = "1" ]; then
+        install_staged_vendors
+    else
+        info "Staged vendor sidecars not built (set OPENHACK_BOOTSTRAP_ALL=1 to bootstrap them)"
+    fi
     echo ""
     log "Full deploy complete. Enable the local MCPs you want:"
     echo "  openhack config set mcp.camoufox.enabled true      # stealth browser (WAF/Cloudflare)"
     echo "  openhack config set mcp.onlyoffice.enabled true    # docx/xlsx/pptx reports"
     echo "  openhack config set mcp.filesystem.enabled true    # + git/fetch/memory as needed"
 fi
+
+# The code-audit engine is core tooling — bootstrap it on every path unless dry-running.
+install_lattice
 
 
 echo ""

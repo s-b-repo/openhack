@@ -1,0 +1,66 @@
+# Markdownlint configuration for GraphBit
+# https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md
+
+# Default state for all rules
+default: true
+
+# Rule customizations
+MD003:
+  # Header style - consistent
+  style: atx
+
+MD007:
+  # Unordered list indentation - 2 spaces
+  indent: 2
+
+MD009:
+  # Trailing spaces - allow 2 trailing spaces for line breaks
+  br_spaces: 2
+
+MD013:
+  # Line length - allow up to 150, but disable for code blocks and tables
+  line_length: 150
+  code_blocks: false
+  tables: false
+  headings: false
+
+MD024: false
+  # # Multiple headers with the same content - allow duplicates in different sections
+  # allow_different_nesting: true
+
+MD026:
+  # Trailing punctuation in headers - allow question marks
+  punctuation: .,;:!
+
+MD029:
+  # Ordered list item prefix - use ordered numbers
+  style: ordered
+
+MD033:
+  # Inline HTML - allow for necessary HTML elements
+  # allowed_elements: [br, sub, sup, img, a, details, summary, div, p, h1]
+  allowed_elements:
+  - br
+  - sub
+  - sup
+  - img
+  - a
+  - details
+  - summary
+  - div
+  - p
+  - h1
+  - b
+
+
+MD034: false
+
+MD036: false
+
+MD046:
+  # Code block style - fenced code blocks
+  style: fenced
+
+MD048:
+  # Code fence style - backticks
+  style: backtick

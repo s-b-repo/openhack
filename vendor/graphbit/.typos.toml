@@ -1,0 +1,42 @@
+[default]
+extend-ignore-re = [
+  # UUIDs
+  "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+  # Git hashes
+  "[0-9a-f]{7,40}",
+  # Hex strings
+  "0x[0-9a-f]+"
+]
+
+[default.extend-words]
+GraphBit = "GraphBit"
+agentic = "agentic"
+anyhow = "anyhow"
+async = "async"
+await = "await"
+chrono = "chrono"
+clippy = "clippy"
+config = "config"
+declarative = "declarative"
+# Project-specific terms
+graphbit = "graphbit"
+petgraph = "petgraph"
+pyo3 = "pyo3"
+reqwest = "reqwest"
+rustfmt = "rustfmt"
+serde = "serde"
+strat = "strat"
+thiserror = "thiserror"
+tokio = "tokio"
+utils = "utils"
+uuid = "uuid"
+workflow = "workflow"
+
+[files]
+extend-exclude = [
+  "*.lock",
+  "target/",
+  ".git/",
+  "Cargo.lock",
+  "benchmarks/"
+]

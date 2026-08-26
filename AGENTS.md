@@ -19,6 +19,7 @@ An AI-powered security assessment assistant for authorized penetration testing p
 | `/recover now` | Save and restart session |
 | `/undo` | Undo last changes |
 | `/share` | Share session link |
+| `/codeaudit <path>` | Auto-audit source code with the Lattice structural engine (hunt + secaudit + diagnose + triage) |
 
 ## Agents
 
@@ -135,6 +136,29 @@ Two new package scripts on `packages/openhack-cli/`:
 - **`bench:loop:compare`** — `bun run script/bench-attack-loop-compare.ts HEAD~1 HEAD`. Runs the bench in `git worktree` sandboxes for two refs (never touches the caller's tree), prints a Markdown delta table, exits 1 if any of `loop_total_cost_usd` / `loop_wall_seconds` / `loop_rounds_to_goal` regresses by > 15%.
 
 Fixtures live under `perf/fixtures/` (`site1.json`, `site2.json`, `site3-verify.json`) — swap in your own to exercise a specific attack surface.
+
+## Loop physics (`LoopPhysics` — reliability decay + context cliff + self-tuning harness)
+
+The quantitative model behind the loop-vs-graph stance lives in `packages/openhack-orchestration/src/loop-physics.ts` (pure, deterministic, fully tested). Three empirical results, operationalized:
+
+1. **Compounding step reliability** — a chain of `n` steps at per-step success `p` succeeds with probability `p^n` (95% × 100 steps ≈ 0.6%). `Reliability.compound / plan / risk / maxUnverifiedSteps / checkpointInterval / expectedRework` put numbers on it. Consequence enforced in code: the heuristic controller discounts every `chain-*` ActionNode's score by its dependency-depth reliability (`scheduleDiscount`) and annotates `physics: { band, reliability }`; red-band chains (< 0.5 floor) also drop one priority tier — shallow verified work wins frontier top-k over deep speculative chains.
+2. **Context degradation cliff** — multi-needle retrieval ≈97% on short contexts → ≈37% at 500K tokens; recall falls off a cliff, not a slope. `ContextHealth.fidelityAt / verdict / effectiveStep` model it (piecewise-linear calibration anchored at the published endpoints). After each round the loop estimates mean per-instance transcript tokens from session token accounting and logs `physics: context <band> …` (`healthy → continue`, `degrading → compact`, `cliff → fresh-instance`). A `cliff` verdict **gates round extensions**: `RoundBudget.shouldExtend` is overridden when `physics.gated_extension` is on (default) — extending a loop whose instances are past the cliff buys degraded work, not progress.
+3. **Harness > model** — measured harness deltas reach ~48 points vs ~5 for model choice, so knobs are searched, not doctrine. **`bench:tune`** (`bun run script/bench-harness-tuner.ts`, env: `TUNE_TARGET`, `TUNE_ROUNDS`, `TUNE_FIXTURE`, `TUNE_FRONTIER_KS`, `TUNE_INSTANCES`, `TUNE_MODE`) sweeps frontier width × instance fan-out through the deterministic bench, scores each run with `LoopPhysics.scoreRun` (high-value findings and coverage up; cost/wall down), breaks ties toward cheaper/simpler harnesses, prints a Markdown Pareto table + METRICs, and persists the winner to `.openhack/harness-tuning.json`. It refuses to persist from a dead fixture (0 findings AND 0 coverage). `runOrchestrationLoop` adopts `recommended.frontier_k` as its default when no explicit `--frontier-k`/config is set.
+
+Config keys (`.openhack/openhack.jsonc`):
+
+| Key | Default | Meaning |
+|---|---|---|
+| `physics.enabled` | `true` | Master switch for loop-physics advisories/gates |
+| `physics.per_step_reliability` | `0.85` | Assumed per-step success probability for chain discounting |
+| `physics.reliability_floor` | `0.5` | Compounded-reliability floor below which chains are "red" |
+| `physics.degrading_fidelity` | `0.85` | Retrieval fidelity under which context is "degrading" |
+| `physics.cliff_fidelity` | `0.6` | Retrieval fidelity under which context is past the cliff |
+| `physics.gated_extension` | `true` | Block round extensions while context band is `cliff` |
+
+Bench metrics added to `bench:loop`: `loop_context_fidelity`, `loop_context_band`, `loop_per_instance_tokens`, `loop_plan_reliability`.
+
+Tests: `packages/openhack/test/loop-physics.test.ts`, `harness-tuning.test.ts` (plus the extended `bench-harness.smoke.test.ts` metric contract).
 
 ## Loop-graph hybrid + universal LLM wiring
 
@@ -258,6 +282,29 @@ The refresh script (`packages/openhack/script/ingest-knowledge.ts`) shallow-clon
 ### Loop integration
 
 When `graph.controller_enabled=true`, the loop driver calls `Combinations.checklist(target)` each round and hands the report to both the LLM controller (`buildUser` gets a `## Untested combinations` section) and the heuristic controller (step 4 emits `test-method-*`, `test-payload-*`, and `chain-*` ActionNodes). The `frontier_empty` termination guard is stricter: it now requires `frontier + coverage gaps + combinatorial checklist` all empty.
+
+## Structural code auditing (Lattice)
+
+Lattice (vendored at `vendor/lattice/`, source of truth `src/lattice` — a Python structural-analysis engine) ingests source into a typed hypernetwork and audits structure over it — ts/js (LSP), py, go, rs, rb, sol, c/cpp/cu, sh, sql.
+
+**Engine resolution** (`.openhack/tool/lattice-codeaudit.sh`): `$OPENHACK_LATTICE_BIN` override → `vendor/lattice/.venv/bin/lattice` (self-contained; bootstrap once with `vendor/lattice/bootstrap.sh`, idempotent) → legacy PATH install. No global install is required.
+
+- **`lattice-codeaudit <path>`** — one-shot auto-audit: detects languages, runs hunt (ranked structural bugs), secaudit (attack surface + source→sink reachability, findings labeled TAINTED vs reachable by interprocedural taint), diagnose (cycles/dead code/stubs) and triage (severity × blast radius). Writes JSON + Markdown to `.openhack/codeaudit/<name>-<stamp>/` (`-latest` symlink). Exit 0 clean · 1 critical/high · 2 unusable. All LSP waits are bounded (`LATTICE_LSP_TIMEOUT`, default 60s; per-leg cap `LATTICE_LEG_TIMEOUT`, default 600s).
+- **`/codeaudit <path>`** — the slash-command macro wrapping the same flow with finding-validation + CWE recording steps.
+- **Automode** — the `source-code-audit` orchestrator (priority 3, `general` subagent) audits any source discovered during a loop (exposed repo/`.git`, disclosure) and promotes confirmed TAINTED paths into findings.
+- Agents `recon`, `exploit`, `post-exploit` have `"lattice *"` / `"lattice-codeaudit *"` bash allows (read-only analysis); everyone else follows default permission rules.
+- Honesty contract: Lattice proves reachability/taint, not exploitability — agents must read flagged files before recording findings. Missing language toolchains appear as blind spots in every report, never as clean results.
+- Skill reference for agents: `.openhack/skills/lattice/SKILL.md`.
+
+## Dynamic Context Runtime (DCR)
+
+Bounded attention over unbounded session history, per `cybersec.org.za/papers/dcr-bounded-attention.pdf`. When enabled, session history is ingested into the reference runtime (`vendor/subnext`, resolved as `$DCR_BIN` → `vendor/subnext/bin/dcr` → PATH; build with `vendor/subnext/bootstrap.sh`) and each provider turn receives a budgeted working set plus a verbatim recent tail instead of the full transcript. Compaction remains the overflow fallback.
+
+- Enable: `"dcr": { "enabled": true }` in openhack config (or `DCR_ENABLED=1`). Options: `bin` (default `dcr`, or `DCR_BIN`), `budget` — B_attention in tokens (default 1200), `recentTokens` — verbatim tail budget (default 4000).
+- Per-session stores live under `~/.local/share/openhack/dcr/<sessionID>/` (`memory.dcr.json` + a turns directory of immutable per-message spans).
+- Escalation: the model may reply `#ESCALATE m<seq>` to demand raw bytes for a span; the next planning pass services it against B_attention. Runtime-native node ids ride its own routing.
+- Corrections: superseded values are annotated as NOTE lines in the window rather than hidden; stale facts are never planned.
+- Any runtime failure degrades that turn silently to the legacy full-history path.
 
 ## Authorized Use Only
 
