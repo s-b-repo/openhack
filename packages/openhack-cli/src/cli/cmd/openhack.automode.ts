@@ -35,6 +35,7 @@ import {
   Frontier,
   HeuristicController,
   LlmController,
+  LoopPhysics,
   Scores,
   type Controller,
   type ControllerInput,
@@ -260,6 +261,39 @@ function roeBlocked(target: string): { blocked: boolean; reason?: string } {
   try { return ROE.enforce(ROE.load(), target, "task") } catch { return { blocked: false } }
 }
 
+/**
+ * Harness self-tuning pickup — reads `.openhack/harness-tuning.json` (written by
+ * `bench:tune`, which sweeps frontier width / instance fan-out against the
+ * deterministic bench and persists the winner). Returns undefined when absent
+ * so explicit CLI flags and config always win.
+ */
+export function tunedFrontierK(): number | undefined {
+  try {
+    const t = JSON.parse(fs.readFileSync(path.join(".openhack", "harness-tuning.json"), "utf-8"))
+    const k = Number(t?.recommended?.frontier_k)
+    return Number.isFinite(k) && k > 0 ? Math.min(20, Math.round(k)) : undefined
+  } catch { return undefined }
+}
+
+/** Loop-physics config (`.openhack/openhack.jsonc`, dotted key `physics.*`). Advisory defaults on. */
+function physicsConfig(): {
+  enabled: boolean
+  perStepP: number
+  floor: number
+  degradingFidelity: number
+  cliffFidelity: number
+  gatedExtension: boolean
+} {
+  return {
+    enabled: ConfigStore.get("physics.enabled") !== false,
+    perStepP: Number(ConfigStore.get("physics.per_step_reliability") ?? LoopPhysics.DEFAULT_STEP_P) || LoopPhysics.DEFAULT_STEP_P,
+    floor: Number(ConfigStore.get("physics.reliability_floor") ?? LoopPhysics.DEFAULT_FLOOR) || LoopPhysics.DEFAULT_FLOOR,
+    degradingFidelity: Number(ConfigStore.get("physics.degrading_fidelity") ?? LoopPhysics.ContextHealth.DEGRADING_AT) || 0.85,
+    cliffFidelity: Number(ConfigStore.get("physics.cliff_fidelity") ?? LoopPhysics.ContextHealth.CLIFF_AT) || LoopPhysics.ContextHealth.CLIFF_AT,
+    gatedExtension: ConfigStore.get("physics.gated_extension") !== false,
+  }
+}
+
 export interface LoopOptions {
   ids?: string[]
   maxRounds: number
@@ -459,7 +493,9 @@ export async function runOrchestrationLoop(target: string, opts: LoopOptions): P
     typeof opts.graph === "boolean"
       ? opts.graph
       : Boolean((ConfigStore.get("graph.controller_enabled") as unknown as boolean) ?? false)
-  const frontierK = Math.max(1, Math.min(20, opts.frontierK ?? 6))
+  // Harness self-tuning: when `bench:tune` has measured a better frontier width
+  // for this engagement's surface, use it as the default (explicit flags win).
+  const frontierK = Math.max(1, Math.min(20, opts.frontierK ?? tunedFrontierK() ?? 6))
   const graphSnapshot = graphOn ? AttackGraph.load(target) : null
   const controller: Controller | null = graphOn
     ? LlmController.make({ generate: opts.graphGenerate, logger: (m) => log(`  ${m}`) })
@@ -661,7 +697,12 @@ export async function runOrchestrationLoop(target: string, opts: LoopOptions): P
   // `.openhack/openhack.jsonc` — the old fixed ceiling is preserved.
   const rbCfg = RoundBudget.config()
   const adaptiveOn = (ConfigStore.get("round_budget.adaptive") as unknown as boolean | undefined) !== false
+  const physCfg = physicsConfig()
   let budgetCap = opts.maxRounds
+  // Worst context-health band observed so far ("healthy" | "degrading" | "cliff").
+  // A "cliff" verdict gates round extensions: extending a loop whose instances
+  // are already past the usable-recall cliff buys degraded work, not progress.
+  let lastContextBand: "healthy" | "degrading" | "cliff" = "healthy"
   while (round < budgetCap) {
     round++
     log(`── Round ${round}/${budgetCap}${budgetCap > opts.maxRounds ? ` (extended from ${opts.maxRounds})` : ""} ──`)
@@ -881,6 +922,29 @@ export async function runOrchestrationLoop(target: string, opts: LoopOptions): P
     // Blackboard housekeeping — drop old consumed peer messages (open ones are kept).
     if (blackboardOn) { try { Blackboard.prune(target, retainRounds, round) } catch {} }
 
+    // Loop physics — context-degradation advisory. Each dispatched instance is a
+    // fresh subprocess session, but a long round on one objective still means a
+    // long transcript inside that subagent, and retrieval fidelity collapses
+    // non-linearly with transcript size (~97% → ~37% at 500K tokens). Estimate
+    // the mean per-instance transcript from this session's token accounting and
+    // surface the verdict BEFORE the next round builds on degraded recall.
+    if (physCfg.enabled && session.results.length > 0) {
+      try {
+        const tok = session.results.reduce(
+          (a, r) => a + (r.tokensUsed?.input ?? 0) + (r.tokensUsed?.output ?? 0), 0,
+        )
+        const perInstance = Math.round(tok / Math.max(1, session.results.length))
+        const v = LoopPhysics.ContextHealth.verdict(perInstance)
+        const cliffAt = physCfg.cliffFidelity
+        const degrAt = physCfg.degradingFidelity
+        const band = v.fidelity >= degrAt ? "healthy" : v.fidelity >= cliffAt ? "degrading" : "cliff"
+        log(`  physics: context ${band} (fidelity ≈${Math.round(v.fidelity * 100)}%, ~${perInstance.toLocaleString("en-US")} tok/instance) → ${v.action}`)
+        if (band !== "healthy") lastContextBand = band
+        else lastContextBand = "healthy"
+      } catch {}
+    }
+
+
     prevCost = session.totalCost
 
     if (session.status === "cost_limited") { log("Terminating: batch budget reached."); break }
@@ -942,12 +1006,19 @@ export async function runOrchestrationLoop(target: string, opts: LoopOptions): P
       // and keep going. Bounded by `round_budget.hard_ceiling`.
       if (round >= budgetCap) {
         const remaining = Math.max(0, session.costConfig.max_cost_per_batch - session.totalCost)
-        const ex = RoundBudget.shouldExtend({ currentRound: round, callerMaxRounds: budgetCap, records: recs, remainingBudgetUsd: remaining, cfg: rbCfg })
-        if (ex.extend) {
-          log(`Extending: ${ex.reason} → maxRounds=${ex.newMax}`)
-          budgetCap = ex.newMax
+        // Physics gate first: past the context cliff, more rounds of the same
+        // long-context instances mostly re-read degraded state. The honest move
+        // is to stop (the operator should split objectives / compact instead).
+        if (physCfg.enabled && physCfg.gatedExtension && lastContextBand === "cliff") {
+          log(`Not extending: physics — per-instance context is past the retrieval cliff (${LoopPhysics.CLIFF_TOKENS.toLocaleString("en-US")} tok anchor); split objectives or compact instead.`)
         } else {
-          log(`Not extending: ${ex.reason}`)
+          const ex = RoundBudget.shouldExtend({ currentRound: round, callerMaxRounds: budgetCap, records: recs, remainingBudgetUsd: remaining, cfg: rbCfg })
+          if (ex.extend) {
+            log(`Extending: ${ex.reason} → maxRounds=${ex.newMax}`)
+            budgetCap = ex.newMax
+          } else {
+            log(`Not extending: ${ex.reason}`)
+          }
         }
       }
     } else {

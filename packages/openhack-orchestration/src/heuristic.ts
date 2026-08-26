@@ -12,6 +12,7 @@ import type {
 import { emptyUpdate } from "./types"
 import { AttackGraph } from "./graph"
 import { Scores } from "./scores"
+import { LoopPhysics } from "./loop-physics"
 import { Checklist } from "../../openhack/src/checklist"
 
 /**
@@ -335,7 +336,30 @@ export namespace HeuristicController {
       hybridCount++
     }
 
-    // --- 6) Score reweighting from persistent per-kind history ---
+    // --- 6) Loop-physics staging discount ---
+    // Compounding step reliability: a chain of depth d succeeds with p^d, so a
+    // deep speculative chain is worth less than its nominal score suggests.
+    // Discount chain actions (chain-finding / chain-pair combos) by their
+    // compounded reliability and record the risk band on the node — red-band
+    // chains (below the 0.5 floor) also lose one priority tier so shallow,
+    // high-certainty work wins the frontier's top-k slots first. This is the
+    // "prefer flat verified loops over deep rigid pipelines" stance, enforced
+    // at scheduling time rather than by doctrine alone.
+    let physicsDiscounted = 0
+    for (const n of addNodes) {
+      if (!AttackGraph.isAction(n)) continue
+      if (!n.objective.startsWith("chain-")) continue
+      const depth = n.requires.length + 1
+      const risk = LoopPhysics.Reliability.risk(Array.from({ length: depth }, () => LoopPhysics.DEFAULT_STEP_P))
+      n.physics = { band: risk.band, reliability: Math.round(risk.reliability * 1000) / 1000 }
+      if (risk.band !== "green") {
+        n.score = Math.round(n.score * LoopPhysics.Reliability.scheduleDiscount(depth) * 100) / 100
+        if (risk.band === "red") n.priority = Math.min(99, n.priority + 1)
+        physicsDiscounted++
+      }
+    }
+
+    // --- 7) Score reweighting from persistent per-kind history ---
     // Multiply each ActionNode's score by the prior for its agent kind — a kind
     // that's produced findings before gets bumped, one that consistently returns
     // nothing gets dampened. This is what turns the deterministic controller
@@ -361,7 +385,7 @@ export namespace HeuristicController {
       reprioritize: [],
       prune: [],
       dispatch: [],
-      rationale: `heuristic:round=${round} verify=${toVerify.length} chain=${toChain.length} gaps=${gapSlice.length} combo=${comboCount} hybrid=${hybridCount}`,
+      rationale: `heuristic:round=${round} verify=${toVerify.length} chain=${toChain.length} gaps=${gapSlice.length} combo=${comboCount} hybrid=${hybridCount} physics=${physicsDiscounted}`,
     }
   }
 

@@ -12,6 +12,7 @@
     "bench:test": "bun run script/bench-test-suite.ts",
     "bench:loop": "bun run script/bench-attack-loop.ts",
     "bench:loop:compare": "bun run script/bench-attack-loop-compare.ts",
+    "bench:tune": "bun run script/bench-harness-tuner.ts",
     "profile:test": "bun run script/profile-test-files.ts",
     "build": "bun run script/build.ts",
     "dev": "bun run --conditions=browser ./src/index.ts",

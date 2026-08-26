@@ -25,7 +25,7 @@ import * as fs from "node:fs"
 import * as path from "node:path"
 import * as os from "node:os"
 import { runOrchestrationLoop, type LlmFactory, type LlmFn } from "../src/cli/cmd/openhack.automode"
-import { AttackGraph, GraphStore } from "../../openhack-orchestration/src"
+import { AttackGraph, GraphStore, LoopPhysics } from "../../openhack-orchestration/src"
 import { Findings } from "../../openhack/src/findings"
 import { Coverage } from "../../openhack/src/coverage"
 
@@ -319,6 +319,15 @@ async function main() {
   const totals = mock.totalTokens()
   const totalCost = mock.totalCost()
 
+  // Loop physics — mean per-instance transcript estimate and its retrieval-
+  // fidelity verdict, plus the compounded reliability of one round's dispatch
+  // batch (per-step DEFAULT_STEP_P over the mean objectives per round). These
+  // make context-cliff and chain-decay regressions visible to the comparer.
+  const dispatchCount = Math.max(1, taskTiming.length)
+  const perInstanceTokens = Math.round((totals.in + totals.out) / dispatchCount)
+  const ctx = LoopPhysics.ContextHealth.verdict(perInstanceTokens)
+  const planReliability = LoopPhysics.Reliability.compound(LoopPhysics.DEFAULT_STEP_P, dispatchCount)
+
   const roundsRun = session.results.filter((r) => /council|planning|report/.test(r.id) === false || /council/.test(r.id))
     .length
   // Termination reason from the final log line — cheap best-effort parse.
@@ -390,6 +399,10 @@ async function main() {
     loop_macro_ms_p50: median(macroTiming).toFixed(2),
     loop_macro_ms_p95: p95(macroTiming).toFixed(2),
     loop_terminate_reason: reason,
+    loop_context_fidelity: ctx.fidelity,
+    loop_context_band: ctx.band,
+    loop_per_instance_tokens: perInstanceTokens,
+    loop_plan_reliability: planReliability.toFixed(4),
   }
 
   for (const [k, v] of Object.entries(metrics)) console.log(`METRIC ${k}=${v}`)

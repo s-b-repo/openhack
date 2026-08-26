@@ -95,6 +95,13 @@ export interface ActionNode {
   spawnedRound: number
   status: ActionStatus
   blockedReason?: string
+  /**
+   * Loop-physics annotation from the deterministic controller: the compounded
+   * reliability of this action's dependency chain (+ itself) and its risk band
+   * (see `LoopPhysics.Reliability.risk`). Advisory — frontier scoring already
+   * discounts deep chains via `scheduleDiscount`; this surfaces WHY.
+   */
+  physics?: { band: "green" | "yellow" | "red"; reliability: number }
 }
 
 export type NodeUnion = AssetNode | FindingNode | ActionNode

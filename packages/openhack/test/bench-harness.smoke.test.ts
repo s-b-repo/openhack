@@ -50,6 +50,10 @@ const REQUIRED_METRICS = [
   "loop_macro_ms_p50",
   "loop_macro_ms_p95",
   "loop_terminate_reason",
+  "loop_context_fidelity",
+  "loop_context_band",
+  "loop_per_instance_tokens",
+  "loop_plan_reliability",
 ]
 
 describe("bench-attack-loop harness", () => {
