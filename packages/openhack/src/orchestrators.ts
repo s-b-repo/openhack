@@ -167,6 +167,22 @@ For each section the tool prints:
 Update the coverage store after each attempt (\`Coverage.mark\` supports a \`payloadFamilies\` array) so the next round's \`openhack combos\` output shrinks. Terminate when the "combos open" count reaches 0. Stay in scope; never destructive.`,
         ),
     },
+    {
+      id: "source-code-audit",
+      name: "Source-code audit (Lattice)",
+      subagentType: "general",
+      priority: 3,
+      objective: "Structurally audit any discovered source code and convert confirmed weaknesses into findings",
+      instruction: (t) =>
+        withDoctrine(
+          t,
+          `Objective: if source code for ${t} is available (exposed repo or .git, source disclosure, source maps, or a local codebase in scope), audit it with the Lattice structural engine.
+- Run \`lattice-codeaudit <path>\` — auto-detects languages and runs hunt (ranked structural bugs), secaudit (attack surface + source→sink reachability with TAINTED/reachable labels), diagnose (cycles/dead code/stubs), triage (severity × blast radius). Exit 1 = critical/high findings present.
+- Read report.md under .openhack/codeaudit/ and VALIDATE each critical/high finding by reading the flagged file yourself before recording it — Lattice proves reachability/taint, not exploitability.
+- Record confirmed issues as findings with CWE where applicable; keep reachable-but-unconfirmed sinks as leads for the exploit specialist.
+- Report blind-spot languages (missing toolchains) as coverage gaps, never as clean results. If no source is available, mark this objective complete ('no-source') and move on.`,
+        ),
+    },
     // ── loop-graph hybrid — additional agent roles ─────────────────────────
     // These four orchestrators promote osint / defense / c2 / cleanup from
     // "on-disk agent files that the loop never dispatched" to first-class

@@ -214,6 +214,20 @@
     "expensive_model_for_exploitation": "anthropic/claude-sonnet-4",
     "token_budget_per_task": 100000
   },
+  // ── Loop physics (packages/openhack-orchestration/src/loop-physics.ts) ──
+  // Quantitative loop model: compounding step reliability (p^n), the context-
+  // degradation cliff (~97% → ~37% multi-needle retrieval at 500K tokens), and
+  // harness self-tuning (`bench:tune` → .openhack/harness-tuning.json, adopted
+  // by `automode --loop` as the default frontier width). All keys optional —
+  // these are the defaults; delete the block to accept them silently.
+  "physics": {
+    "enabled": true,
+    "per_step_reliability": 0.85,
+    "reliability_floor": 0.5,
+    "degrading_fidelity": 0.85,
+    "cliff_fidelity": 0.6,
+    "gated_extension": true
+  },
   // ── Hierarchical AI orchestration: main → 5 phase-managers → workers ──
   // The five managers are cheap LLM planners (packages/openhack/src/managers.ts +
   // .openhack/agents/phase-manager.md). Each owns one phase of the attack chain and, each
@@ -315,7 +329,9 @@
     "recon": {
       "permission": {
         "edit": "deny",
-        "bash": { "*": "ask", "nmap *": "allow", "rustscan *": "allow", "amass *": "allow", "subfinder *": "allow" }
+        "bash": { "*": "ask", "nmap *": "allow", "rustscan *": "allow", "amass *": "allow", "subfinder *": "allow",
+                  // Lattice structural code audit — read-only analysis, safe to auto-run.
+                  "lattice *": "allow", "lattice-codeaudit *": "allow" }
       },
       "mcp_tools": {
         "hexstrike": ["hexstrike_scan_*", "hexstrike_recon_*", "hexstrike_dns_*"],
@@ -331,7 +347,9 @@
     "exploit": {
       "permission": {
         "edit": "deny",
-        "bash": { "*": "ask", "msfvenom *": "allow", "sqlmap *": "allow", "nuclei *": "allow" }
+        "bash": { "*": "ask", "msfvenom *": "allow", "sqlmap *": "allow", "nuclei *": "allow",
+                  // Lattice structural code audit — read-only analysis, safe to auto-run.
+                  "lattice *": "allow", "lattice-codeaudit *": "allow" }
       },
       "mcp_tools": {
         "hexstrike": ["hexstrike_exploit_*", "hexstrike_sqli_*", "hexstrike_xss_*"],
@@ -348,7 +366,7 @@
     "post-exploit": {
       "permission": {
         "edit": "deny",
-        "bash": { "*": "ask" }
+        "bash": { "*": "ask", "lattice *": "allow", "lattice-codeaudit *": "allow" }
       },
       "mcp_tools": {
         "rustsploit": ["rustsploit_loot_*", "rustsploit_cred_*"],
