@@ -25,6 +25,7 @@ import { ToolRegistry } from "../../tool/registry"
 import { ToolOutputStore } from "../../tool-output-store"
 import { SessionContextEpoch } from "../context-epoch"
 import { SessionCompaction } from "../compaction"
+import { SessionDcr } from "../dcr"
 import { SessionEvent } from "../event"
 import { SessionHistory } from "../history"
 import { SessionInput } from "../input"
@@ -106,6 +107,9 @@ const layer = Layer.effect(
     const snapshots = yield* Snapshot.Service
     const db = (yield* Database.Service).db
     const compaction = SessionCompaction.make({ events, llm, config: yield* config.entries() })
+    const dcrSettings = SessionDcr.settings(yield* config.entries())
+    // Sidecars outlive individual turns; tear them down with the runner's scope.
+    yield* Effect.addFinalizer(() => Effect.sync(() => SessionDcr.disposeAll()))
     const getSession = Effect.fn("SessionRunner.getSession")(function* (sessionID: SessionSchema.ID) {
       const session = yield* store.get(sessionID)
       if (!session) return yield* Effect.die(`Session not found: ${sessionID}`)
@@ -194,6 +198,17 @@ const layer = Layer.effect(
       const model = yield* models.resolve(session)
       const entries = yield* SessionHistory.entriesForRunner(db, session.id, system.baselineSeq)
       const context = entries.map((entry) => entry.message)
+      // DCR assembles a budgeted working set over unbounded history; undefined
+      // means disabled/unavailable and the legacy full-history path applies.
+      // Escalations raised by the previous attempt (#ESCALATE) pin those nodes
+      // at L0 so this attempt receives raw bytes instead of the compact form.
+      const dcrContext = yield* SessionDcr.assembleEffect({
+        sessionID: session.id,
+        entries,
+        settings: dcrSettings,
+        escalate: SessionDcr.pendingEscalations(entries),
+      })
+
       const isLastStep = agent.info?.steps !== undefined && currentStep >= agent.info.steps
       const toolMaterialization = isLastStep ? undefined : yield* tools.materialize(agent.info?.permissions)
       const promptCacheKey = /^ses_[0-9a-f]{64}$/.test(session.id) ? session.id.slice(4) : session.id
@@ -203,7 +218,11 @@ const layer = Layer.effect(
         system: [agent.info?.system, system.baseline]
           .filter((part): part is string => part !== undefined && part.length > 0)
           .map(SystemPart.make),
-        messages: [...toLLMMessages(context, model), ...(isLastStep ? [Message.assistant(MAX_STEPS_PROMPT)] : [])],
+        messages: [
+          ...(dcrContext ? [Message.user(SessionDcr.block(dcrContext))] : []),
+          ...toLLMMessages(dcrContext ? dcrContext.recentMessages : context, model),
+          ...(isLastStep ? [Message.assistant(MAX_STEPS_PROMPT)] : []),
+        ],
         tools: toolMaterialization?.definitions ?? [],
         toolChoice: isLastStep ? "none" : undefined,
       })
