@@ -71,8 +71,12 @@ function internalPlugins(flags: RuntimeFlags.Info): PluginInstance[] {
         experimentalWebSockets: experimentalWebSocketsEnabled({ enabled: flags.experimentalWebSockets }),
       }),
     CopilotAuthPlugin,
-    GitlabAuthPlugin,
-    PoeAuthPlugin,
+    // opencode-gitlab-auth / opencode-poe-auth are published against the legacy
+    // @opencode-ai/plugin type universe. At runtime the hook shapes are the ones
+    // @openhack-ai/plugin declares; these assertions are the documented boundary
+    // between the two SDK generations (drop when the packages publish openhack-typed).
+    GitlabAuthPlugin as unknown as PluginInstance,
+    PoeAuthPlugin as unknown as PluginInstance,
     CloudflareWorkersAuthPlugin,
     CloudflareAIGatewayAuthPlugin,
     AzureAuthPlugin,
