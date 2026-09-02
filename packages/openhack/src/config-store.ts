@@ -60,6 +60,18 @@ export namespace ConfigStore {
   }
 
   /**
+   * Look up a dotted key that is expected to hold a config BLOCK (object) and
+   * return it as a field-guarded record — the type-safe way to read engine
+   * namespaces (`dcr`, `lattice`, `temporal`, …) without unchecked casts.
+   */
+  export function getObject(key: string, cfg = load()): Record<string, unknown> | undefined {
+    const value = get(key, cfg)
+    if (value === null || typeof value !== "object" || Array.isArray(value)) return undefined
+    const record: Record<string, unknown> = value
+    return record
+  }
+
+  /**
    * Coerce a shell-supplied string value: JSON where it parses (numbers, booleans,
    * null, arrays, objects), otherwise the raw string. So `set x.y 3` stores 3 (number)
    * and `set x.z true` stores true (boolean).

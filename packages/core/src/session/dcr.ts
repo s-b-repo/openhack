@@ -21,8 +21,15 @@ import { serialize as serializeMessage } from "./compaction"
  * session stays the reasoner and receives only the planned working set plus a
  * small verbatim recent tail instead of the full transcript.
  *
- * Any runtime failure degrades silently to the legacy full-history path, and
- * compaction still guards provider overflow.
+ * Any runtime failure degrades the turn to the legacy full-history path — never
+ * silently: the failure is recorded per session (`degradation`) and surfaced by
+ * the caller — and compaction still guards provider overflow.
+ *
+ * Two session runtimes share this one context system: the V2 `SessionRunner`
+ * projects core `SessionMessage` entries (`assemble`), and the V1
+ * `SessionPrompt` projects `SessionV1.WithParts` (`assembleSpans`). Both lower
+ * to the same engine, budget model, escalation protocol and degradation
+ * contract.
  */
 
 /** A wedged runtime degrades the turn to the legacy full-history path. */
@@ -126,26 +133,40 @@ export const pendingEscalations = (entries: readonly Entry[]): string[] => {
 }
 
 export const recentTail = (entries: readonly Entry[], tokens: number) => {
-  const tail: Entry[] = []
+  const start = recentWindowStart(
+    entries.map((entry) => Token.estimate(serializeMessage(entry.message))),
+    entries.map((entry) => boundaryTypes.has(entry.message.type)),
+    tokens,
+  )
+  if (start === "full") return [...entries]
+  return entries.slice(start)
+}
+
+/**
+ * Shared recent-window math for both assembly paths: walk back from the newest
+ * entry while the token budget allows (always keeping at least the newest), then
+ * — providers reject visible history opening on an assistant turn — slide the
+ * window start forward to the next boundary. If no boundary exists ahead, the
+ * window is invalid and the caller falls back to full history.
+ */
+const recentWindowStart = (
+  costs: readonly number[],
+  boundaries: readonly boolean[],
+  budget: number,
+): number | "full" => {
+  let start = costs.length
   let total = 0
-  for (let index = entries.length - 1; index >= 0; index--) {
-    const text = serializeMessage(entries[index].message)
-    const cost = Token.estimate(text)
-    if (total + cost > tokens && tail.length > 0) break
+  while (start > 0) {
+    const cost = costs[start - 1]
+    if (total + cost > budget && start < costs.length) break
     total += cost
-    tail.unshift(entries[index])
+    start--
   }
-  // Providers reject visible history that opens on an assistant turn, so slide
-  // the window forward to the next user-role boundary. If the tail is all
-  // assistant entries there is no valid window — resend full history instead,
-  // which is known to lower correctly.
-  let start = entries.length - tail.length
-  if (start > 0 && !boundaryTypes.has(entries[start].message.type)) {
-    while (start < entries.length && !boundaryTypes.has(entries[start].message.type)) start++
-    if (start >= entries.length) return [...entries]
-    return entries.slice(start)
-  }
-  return tail
+  if (start === 0) return 0
+  if (boundaries[start]) return start
+  while (start < costs.length && !boundaries[start]) start++
+  if (start >= costs.length) return "full"
+  return start
 }
 
 export type Assembled = {
@@ -157,6 +178,67 @@ export type Assembled = {
   readonly recentMessages: SessionMessage.Message[]
   /** Corrections detected during ingest this turn. */
   readonly corrections: ReadonlyArray<{ superseded: string; by: string }>
+}
+
+/**
+ * Projection of one history entry for the span-based assembly path. The V2
+ * runner projects its `SessionMessage` entries; the V1 `SessionPrompt` projects
+ * `SessionV1.WithParts`. Both lower to the same engine, the same budget model
+ * and the same degradation contract — one context system at every level.
+ */
+export type Span<T = unknown> = {
+  /** The original entry, returned verbatim in `AssembledSpans.recent`. */
+  readonly item: T
+  /** Stable unique id (V2: derived from seq; V1: the message id). */
+  readonly id: string
+  /** Opens a resent-history window (user-role boundary). */
+  readonly boundary: boolean
+  /** Assistant turn — the only place `#ESCALATE` tokens are collected. */
+  readonly assistant: boolean
+  /** Serialized text of the entry. */
+  readonly text: string
+}
+
+export type AssembledSpans<T> = {
+  /** Budgeted working set rendered by the runtime, addressed to the model. */
+  readonly rendered: string
+  /** Tokens used by the working set against B_attention. */
+  readonly tokens: number
+  /** Original items of the verbatim recent window. */
+  readonly recent: readonly T[]
+  /** Corrections detected during ingest this turn. */
+  readonly corrections: ReadonlyArray<{ superseded: string; by: string }>
+}
+
+// ─── degradation observability ────────────────────────────────────────────────
+// The bridge never throws — a wedged runtime degrades the turn to the legacy
+// full-history path — but nothing degrades silently: every failure is recorded
+// per session and surfaced by the caller (Effect log / plugin diagnostics).
+
+export type Degradation = {
+  readonly sessionID: string
+  readonly stage: string
+  readonly at: number
+  readonly error: string
+}
+
+const degradations = new Map<string, Degradation>()
+const degradationCounts = new Map<string, number>()
+
+/** Latest degradation for a session, if any (undefined = healthy or disabled). */
+export const degradation = (sessionID: string): Degradation | undefined => degradations.get(sessionID)
+
+/** Total degradations ever recorded for a session. */
+export const degradationCount = (sessionID: string): number => degradationCounts.get(sessionID) ?? 0
+
+const recordDegradation = (sessionID: string, stage: string, error: unknown) => {
+  degradations.set(sessionID, {
+    sessionID,
+    stage,
+    at: Date.now(),
+    error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+  })
+  degradationCounts.set(sessionID, (degradationCounts.get(sessionID) ?? 0) + 1)
 }
 
 class Engine {
@@ -179,6 +261,18 @@ class Engine {
     await this.ensure()
     const text = serializeMessage(entry.message).replace(/^\[[^\]\n]+\]:\s?/gm, "")
     await writeFile(path.join(this.turns, `m${entry.seq}.txt`), text)
+  }
+
+  /**
+   * Span-based write: the caller projects its entries to stable ids; the file
+   * name is a deterministic hash of the id so re-ingesting the same message is
+   * idempotent and the directory ingest keeps modification-time revision order.
+   * Role markers are stripped exactly as in `write` — the runtime ingests
+   * documents, and the prefixes would defeat its conservative extractor.
+   */
+  async writeSpan(fileID: string, text: string): Promise<void> {
+    await this.ensure()
+    await writeFile(path.join(this.turns, `${fileID}.txt`), text.replace(/^\[[^\]\n]+\]:\s?/gm, ""))
   }
 
   async ingest(): Promise<ReadonlyArray<{ superseded: string; by: string }>> {
@@ -226,6 +320,8 @@ class Engine {
 
 const engines = new Map<string, Engine>()
 const ingestedThrough = new Map<string, number>()
+/** Span-path ingest watermark: ids already written to the turns directory. */
+const ingestedSpanIDs = new Map<string, Set<string>>()
 
 const engineRoot = (sessionID: SessionSchema.ID) => path.join(Global.Path.data, "dcr", sessionID)
 
@@ -272,6 +368,10 @@ const forget = (sessionID: SessionSchema.ID) => {
   engines.get(sessionID)?.dispose()
   engines.delete(sessionID)
   ingestedThrough.delete(sessionID)
+  ingestedSpanIDs.delete(sessionID)
+  // Degradation records intentionally survive `forget`: the caller inspects
+  // them right after a failed assemble to surface the reason. They are cleared
+  // with `disposeAll` (runner teardown) instead.
 }
 
 /**
@@ -326,7 +426,8 @@ export const assemble = async (input: {
       recentMessages: recentTail(input.entries, input.settings.recentTokens).map((entry) => entry.message),
       corrections,
     }
-  } catch {
+  } catch (error) {
+    recordDegradation(input.sessionID, "assemble", error)
     forget(input.sessionID)
     return undefined
   }
@@ -341,7 +442,7 @@ export const assembleEffect = (input: {
 }) =>
   input.settings.enabled ? Effect.promise(() => assemble(input)) : Effect.succeed(undefined)
 
-export const block = (assembled: Assembled) =>
+export const block = (assembled: Assembled | AssembledSpans<unknown>) =>
   [
     `<session-context engine="dcr" tokens="${assembled.tokens}">`,
     "Runtime-assembled working set distilled from earlier in this session.",
@@ -365,9 +466,131 @@ export const block = (assembled: Assembled) =>
 
 /** Dispose every tracked engine and its ingest watermark. */
 export const disposeAll = () => {
-  for (const [sessionID, engine] of engines) engine.dispose()
+  for (const engine of engines.values()) engine.dispose()
   engines.clear()
   ingestedThrough.clear()
+  ingestedSpanIDs.clear()
+  degradations.clear()
+  degradationCounts.clear()
 }
 
 export const disposeSession = (sessionID: SessionSchema.ID) => forget(sessionID)
+
+// ─── span-based assembly (shared context system for every session runtime) ───
+
+/**
+ * Deterministic, filesystem-safe span file id (`m<128-bit-ish hex>`) derived
+ * from the source id. Stable across processes so re-ingesting the same message
+ * is idempotent, and collision-resistant (two independent FNV-1a rounds).
+ */
+export const spanFileID = (id: string): string => {
+  let h1 = 0x811c9dc5
+  let h2 = 0x01000193
+  for (let index = 0; index < id.length; index++) {
+    const char = id.charCodeAt(index)
+    h1 = Math.imul(h1 ^ char, 0x01000193) >>> 0
+    h2 = Math.imul(h2 ^ (char + index), 0x85ebca6b) >>> 0
+  }
+  return `m${h1.toString(16)}${h2.toString(16)}`
+}
+
+/**
+ * `#ESCALATE` tokens still owed to the model on the span path: found in
+ * assistant spans after the latest boundary — same contract as
+ * `pendingEscalations`, over projected spans.
+ */
+export const pendingEscalationsSpans = (spans: readonly Span<any>[]): string[] => {
+  const ids: string[] = []
+  for (let index = spans.length - 1; index >= 0; index--) {
+    const span = spans[index]
+    if (span.boundary) break
+    if (!span.assistant) continue
+    for (const nodeID of escalations(span.text)) if (!ids.includes(nodeID)) ids.push(nodeID)
+  }
+  return ids
+}
+
+/**
+ * Host-side servicing of `#ESCALATE` requests that name one of our span files
+ * (`m<hash>`): the raw bytes join the window ahead of the plan, charged against
+ * B_attention first (§3.7). Foreign node ids ride the runtime's own routing.
+ */
+const serviceEscalationsSpans = (
+  spans: readonly Span<any>[],
+  ids: readonly string[],
+  budget: number,
+): { pinned: string; spent: number } => {
+  const byFile = new Map(spans.map((span) => [spanFileID(span.id), span]))
+  let spent = 0
+  const lines: string[] = []
+  for (const id of ids) {
+    const match = /^(m[0-9a-f]+)$/.exec(id)
+    if (!match) continue
+    const span = byFile.get(match[1])
+    if (!span) continue
+    const text = `[${id}] ${span.text}`
+    const cost = Token.estimate(text)
+    if (spent + cost > budget) break
+    spent += cost
+    lines.push(text)
+  }
+  return { pinned: lines.join("\n"), spent }
+}
+
+/**
+ * Span-based assembly — the same DCR contract as `assemble`, over caller-
+ * projected entries. Used by the V1 `SessionPrompt` runtime (projecting
+ * `SessionV1.WithParts`); the V2 runner keeps `assemble` over core messages.
+ * Degrades to `undefined` on any failure, recording a `Degradation` so nothing
+ * fails silently.
+ */
+export const assembleSpans = async <T>(input: {
+  sessionID: SessionSchema.ID
+  spans: readonly Span<T>[]
+  settings: Settings
+  /** Node ids the model asked to see at raw fidelity this turn (§3.7). */
+  escalate?: readonly string[]
+}): Promise<AssembledSpans<T> | undefined> => {
+  if (!input.settings.enabled || input.spans.length === 0) return undefined
+  try {
+    const engine = acquire(input.sessionID, {
+      ...input.settings,
+      bin: await resolveEngineBin(input.settings.bin),
+    })
+    const seen = ingestedSpanIDs.get(input.sessionID) ?? new Set<string>()
+    ingestedSpanIDs.set(input.sessionID, seen)
+    let added = 0
+    for (const span of input.spans) {
+      if (seen.has(span.id)) continue
+      seen.add(span.id)
+      added++
+      await engine.writeSpan(spanFileID(span.id), span.text)
+    }
+    const corrections = added > 0 ? await engine.ingest() : []
+    const query = [...input.spans].reverse().find((span) => span.boundary)?.text ?? ""
+    if (!query.trim()) return undefined
+    const planned = await engine.plan(query)
+
+    const escalation = input.escalate ?? pendingEscalationsSpans(input.spans)
+    const pinned =
+      escalation.length > 0 ? serviceEscalationsSpans(input.spans, escalation, input.settings.budget) : { pinned: "", spent: 0 }
+    const rendered = [pinned.pinned, planned].filter((section) => section.length > 0).join("\n")
+    if (!rendered.trim()) return undefined
+    const start = recentWindowStart(
+      input.spans.map((span) => Token.estimate(span.text)),
+      input.spans.map((span) => span.boundary),
+      input.settings.recentTokens,
+    )
+    const recent = start === "full" ? input.spans.map((span) => span.item) : input.spans.slice(start).map((span) => span.item)
+    return {
+      rendered,
+      tokens: Math.min(input.settings.budget, pinned.spent + Token.estimate(planned)),
+      recent,
+      corrections,
+    }
+  } catch (error) {
+    recordDegradation(input.sessionID, "assemble-spans", error)
+    forget(input.sessionID)
+    return undefined
+  }
+}

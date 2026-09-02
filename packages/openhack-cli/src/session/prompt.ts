@@ -55,6 +55,8 @@ import { eq } from "drizzle-orm"
 import { SessionTable } from "@openhack-ai/core/session/sql"
 import { SessionReminders } from "./reminders"
 import { SessionTools } from "./tools"
+import { SessionDcr } from "@openhack-ai/core/session/dcr"
+import { SessionDcrSpans } from "./dcr-spans"
 import { LLMEvent } from "@openhack-ai/llm"
 
 // @ts-ignore
@@ -141,6 +143,13 @@ const layer = Layer.effect(
     const flags = yield* RuntimeFlags.Service
     const database = yield* Database.Service
     const { db } = database
+    // Dynamic Context Runtime — the same context system the V2 runner uses.
+    // Settings come from env + the engagement `dcr` config block, so the TUI,
+    // the HTTP prompt handler (and therefore every automode `run` instance)
+    // and the V2 runner all honour the same configuration.
+    const dcrSettings = SessionDcrSpans.resolveSettings()
+    // Sidecars outlive individual turns; tear them down with the instance scope.
+    yield* Effect.addFinalizer(() => Effect.sync(() => SessionDcr.disposeAll()))
     const ops = Effect.fn("SessionPrompt.ops")(function* () {
       return {
         cancel: (sessionID: SessionID) => cancel(sessionID),
@@ -1253,12 +1262,28 @@ const layer = Layer.effect(
 
             yield* plugin.trigger("experimental.chat.messages.transform", {}, { messages: msgs })
 
+            // DCR assembles a budgeted working set over unbounded history; undefined
+            // means disabled/unavailable and the legacy full-history path applies.
+            // Same contract as the V2 runner: never throws, degradations recorded.
+            const dcrContext = dcrSettings.enabled
+              ? yield* Effect.promise(() => SessionDcrSpans.assemble(sessionID, msgs, dcrSettings))
+              : undefined
+            if (!dcrContext && dcrSettings.enabled) {
+              const degraded = SessionDcr.degradation(sessionID)
+              if (degraded)
+                yield* Effect.logWarning("dcr: working-set assembly degraded to full history", {
+                  "session.id": sessionID,
+                  stage: degraded.stage,
+                  error: degraded.error,
+                })
+            }
+
             const [skills, env, instructions, mcpInstructions, modelMsgs] = yield* Effect.all([
               sys.skills(agent),
               sys.environment(model),
               instruction.system().pipe(Effect.orDie),
               sys.mcp(agent, session.permission),
-              MessageV2.toModelMessagesEffect(msgs, model),
+              MessageV2.toModelMessagesEffect([...(dcrContext ? dcrContext.recent : msgs)], model),
             ])
             const system = [
               ...env,
@@ -1276,6 +1301,9 @@ const layer = Layer.effect(
               parentSessionID: session.parentID,
               system,
               messages: [
+                ...(dcrContext
+                  ? [{ role: "user" as const, content: SessionDcr.block(dcrContext) }]
+                  : []),
                 ...modelMsgs,
                 ...(isLastStep ? [{ role: "assistant" as const, content: MAX_STEPS_PROMPT }] : []),
               ],

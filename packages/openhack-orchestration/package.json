@@ -11,9 +11,12 @@
     "./store": "./src/store.ts",
     "./frontier": "./src/frontier.ts",
     "./heuristic": "./src/heuristic.ts",
-    "./controller": "./src/controller.ts"
+    "./controller": "./src/controller.ts",
+    "./round-engine": "./src/round-engine.ts"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@langchain/langgraph": "catalog:"
+  },
   "devDependencies": {
     "@tsconfig/bun": "catalog:",
     "typescript": "catalog:"

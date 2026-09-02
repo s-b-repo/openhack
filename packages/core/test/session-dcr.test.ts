@@ -174,6 +174,88 @@ describe("SessionDcr.disposeSession", () => {
   })
 })
 
+describe("SessionDcr.span path (V1 context system)", () => {
+  const spanID = SessionDcr.spanFileID
+
+  test("spanFileID is deterministic and filesystem-safe", () => {
+    expect(spanID("msg_abc")).toBe(spanID("msg_abc"))
+    expect(spanID("msg_abc")).not.toBe(spanID("msg_abd"))
+    expect(spanID("msg_abc")).toMatch(/^m[0-9a-f]+$/)
+  })
+
+  test("pendingEscalationsSpans collects from assistant spans after the last boundary", () => {
+    const spans: SessionDcr.Span[] = [
+      { item: 1, id: "a", boundary: true, assistant: false, text: "[User]: go" },
+      { item: 2, id: "b", boundary: false, assistant: true, text: "[Assistant]: did it #ESCALATE m_first" },
+      { item: 3, id: "c", boundary: false, assistant: true, text: "[Assistant]: #ESCALATE m_first #ESCALATE m_second" },
+    ]
+    expect(SessionDcr.pendingEscalationsSpans(spans)).toEqual(["m_first", "m_second"])
+    // A boundary stops collection.
+    const stopped: SessionDcr.Span[] = [
+      ...spans,
+      { item: 4, id: "d", boundary: true, assistant: false, text: "[User]: next question" },
+      { item: 5, id: "e", boundary: false, assistant: true, text: "[Assistant]: #ESCALATE m_late" },
+    ]
+    expect(SessionDcr.pendingEscalationsSpans(stopped)).toEqual(["m_late"])
+  })
+
+  test("disabled spans assemble to undefined without recording a degradation", async () => {
+    const sessionID = `ses_spans_disabled_${Date.now().toString(36)}` as never
+    const result = await SessionDcr.assembleSpans({ sessionID, spans: [], settings: { ...SessionDcr.settings([]), enabled: false } })
+    expect(result).toBeUndefined()
+    expect(SessionDcr.degradation(sessionID as string)).toBeUndefined()
+  })
+
+  test("a broken binary degrades to undefined AND records the degradation (no silent swallow)", async () => {
+    const sessionID = `ses_spans_broken_${Date.now().toString(36)}` as never
+    const spans: SessionDcr.Span[] = [{ item: 1, id: "a", boundary: true, assistant: false, text: "[User]: hello" }]
+    const result = await SessionDcr.assembleSpans({
+      sessionID,
+      spans,
+      settings: { enabled: true, bin: "/nonexistent/dcr-for-span-tests", budget: 400, recentTokens: 200 },
+    })
+    expect(result).toBeUndefined()
+    const degraded = SessionDcr.degradation(sessionID as string)
+    expect(degraded).toBeDefined()
+    expect(degraded!.stage).toBe("assemble-spans")
+    expect(degraded!.error.length).toBeGreaterThan(0)
+    expect(SessionDcr.degradationCount(sessionID as string)).toBe(1)
+    SessionDcr.disposeSession(sessionID)
+  })
+})
+
+describe("SessionDcr.assembleSpans (reference implementation)", () => {
+  const sessionID = `ses_spans_integration_${Date.now().toString(36)}` as never
+  const liveSettings = { enabled: true, bin: process.env.DCR_BIN ?? "dcr", budget: 400, recentTokens: 200 }
+
+  maybeIntegration("plans a working set over projected spans and returns the original items", async () => {
+    const items = [
+      { id: "u1", text: "starting work on the incident" },
+      { id: "a1", text: "server.ip = 10.0.9.7" },
+      { id: "u2", text: "what is the server ip?" },
+    ]
+    const spans: SessionDcr.Span<(typeof items)[number]>[] = items.map((item) => ({
+      item,
+      id: item.id,
+      boundary: item.id.startsWith("u"),
+      assistant: item.id.startsWith("a"),
+      text: item.id.startsWith("u") ? `[User]: ${item.text}` : `[Assistant]: ${item.text}`,
+    }))
+    try {
+      const assembled = await SessionDcr.assembleSpans({ sessionID, spans, settings: liveSettings })
+      expect(assembled).toBeDefined()
+      expect(assembled!.rendered).toContain("10.0.9.7")
+      expect(assembled!.tokens).toBeGreaterThan(0)
+      // The recent window returns the ORIGINAL items, starting at a boundary.
+      expect(assembled!.recent[0]!.id).toBe("u1")
+      expect(assembled!.recent.map((r) => r.id)).toEqual(["u1", "a1", "u2"])
+    } finally {
+      rmSync(path.join(Global.Path.data, "dcr", sessionID as string), { recursive: true, force: true })
+      SessionDcr.disposeSession(sessionID as never)
+    }
+  })
+})
+
 const dcrBinary = Bun.which(process.env.DCR_BIN ?? "dcr")
 const maybeIntegration = dcrBinary ? test : test.skip
 

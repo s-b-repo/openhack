@@ -20,6 +20,7 @@ An AI-powered security assessment assistant for authorized penetration testing p
 | `/undo` | Undo last changes |
 | `/share` | Share session link |
 | `/codeaudit <path>` | Auto-audit source code with the Lattice structural engine (hunt + secaudit + diagnose + triage) |
+| `openhack vendors` | Status/resolution report for every vendored framework component (`--json`, `--bootstrap <name>`) |
 
 ## Agents
 
@@ -35,6 +36,35 @@ An AI-powered security assessment assistant for authorized penetration testing p
 | **report** | subagent | Pentest report generation (SysReptor) |
 | **general** | subagent | Multi-step task execution |
 | **explore** | subagent | Codebase exploration |
+
+## Vendored framework components (`vendor/`)
+
+All eight vendored components are first-class framework parts, owned by one
+registry (`packages/openhack/src/vendors.ts`) with a live status surface:
+
+| Component | Status | Seam |
+|---|---|---|
+| `lattice` | wired | `/codeaudit` + write-path structural gate + read-path annotations |
+| `subnext` (DCR) | wired | session context system (V1 + V2) |
+| `mini-swe-agent` | wired | automode execution backend — `TaskSpec.runner: "mini-swe"` or `automode.runner` |
+| `gpt-researcher` | wired | `mcp.osint-research` MCP (passive deep research; granted to `osint`/`recon`) |
+| `deepagents` | wired | manager planning backend — `managers.backend: "deepagents"` |
+| `langgraph` | wired | graph round-engine — `graph.round_engine: "langgraph" \| "auto"` |
+| `graphbit` | probed | native Rust runtime library — status + `--bootstrap` via `openhack vendors` |
+| `temporal` | wired | durable round mirror — `temporal.enabled` + docker-compose service |
+
+Every resolution follows env override → vendored artifact → PATH. A missing
+artifact never fails silently: commands, tasks and mirrors surface the exact
+bootstrap fix. Report: `openhack vendors` (`--json`, `--bootstrap <name>`).
+
+## Agent-scoped MCP tools + tool caps
+
+`agent.<name>.mcp_tools` in `.openhack/openhack.jsonc` is enforced at tool
+resolution (`packages/openhack-cli/src/session/tools.ts`): MCP tools not
+matching the agent's grants are removed before the model sees them, and the
+filtering is logged. `agent.<name>.tool_cap` trims MCP tools (never built-ins)
+to the configured ceiling, also logged. Agents without grants keep the
+historical all-tools behavior.
 
 ## MCP Servers
 
@@ -54,6 +84,7 @@ Bundled in `.openhack/openhack.jsonc` (all **opt-in**, `"enabled": false` by def
 | websearch | Brave search (needs `BRAVE_API_KEY`) | General |
 | camoufox | stealth browser — passes Cloudflare managed challenges, carries `cf_clearance` (see `packages/openhack/mcp/README.md`) | Browser |
 | onlyoffice | docx/xlsx/pptx report generation (replaces SysReptor; `~/onlyoffice-mcp`) | Reporting |
+| osint-research | gpt-researcher deep research — passive OSINT reports (`packages/openhack/mcp/osint_research.py`; **enabled by default**, degrades to a bootstrap hint when the venv is missing) | Research |
 
 ### Adding any MCP server
 
@@ -116,7 +147,9 @@ The `openhack automode --loop` driver iterates rounds against a target and termi
 - Every engagement's **AttackGraph** (`.openhack/graph/<target>.json`, HMAC-signed) holds three node kinds — `AssetNode` (host/port/service/endpoint/cred), `FindingNode` (reference to `Findings` by hash), and `ActionNode` (the candidate-dispatch frontier).
 - Once per round, a small **controller** (LLM if `Provider.getSmallModel` resolves one, otherwise a deterministic heuristic) reads the round's new findings + coverage gaps + last-round delta and returns a `GraphUpdate` (add nodes, add edges, reprioritize, prune, rationale). All errors, timeouts, and schema mismatches degrade to the heuristic.
 - The frontier is pruned through the existing pure enforcement decisions (`evaluateToolCall("task", …)` composes safety + scope + ROE; `ResourceManager.findConflicting` marks resource-conflicted actions but doesn't drop them) — a candidate that would be blocked at dispatch is instead recorded with `blockedReason` and an `invalidates` edge so the controller stops re-emitting it.
-- Round 1 always uses the static `Orchestrators.buildBatch` for a warm start; rounds 2+ dispatch the top-K queued frontier. If the frontier is empty AND coverage has no untested cells, the loop terminates on `frontier_empty` before hitting `maxRounds`.
+- Round 1 always uses the static `Orchestrators.buildBatch` for a warm start; rounds 2+ dispatch the top-K queued frontier (a swappable engine — `graph.round_engine`: `native` default, `langgraph` runs the same contract through a compiled `@langchain/langgraph` StateGraph; `auto` falls back with a recorded note). If the frontier is empty AND coverage has no untested cells, the loop terminates on `frontier_empty` before hitting `maxRounds`.
+- **Durable ledger + resume** — every round appends one JSON record to `.openhack/rounds/<target>.jsonl` (cost, findings delta, coverage, dispatched tasks). `openhack automode --loop --resume` continues after the last recorded round instead of restarting the engagement.
+- **Temporal mirror** — with `temporal.enabled=true` (docker-compose `temporal` service), each round record is additionally mirrored into a Temporal workflow via the `temporal` CLI. Mirror failures are logged with the fix, never fatal.
 
 Config keys (in `.openhack/openhack.jsonc`):
 
@@ -125,6 +158,8 @@ Config keys (in `.openhack/openhack.jsonc`):
 | `graph.controller_enabled` | `false` | Enable the controller. `LoopOptions.graph` overrides. |
 | `graph.controller_model` | *(unset)* | Explicit `provider/model` for the graph controller. If unset, uses `Provider.getSmallModel` (honors `experimental.provider.small_model` plugin hook). |
 | `graph.frontier_k` | `6` | Frontier width per round. `LoopOptions.frontierK` overrides. |
+| `graph.round_engine` | `native` | Frontier selection engine (`native` \| `langgraph` \| `auto`). |
+| `automode.runner` | `openhack` | Default execution backend for loop instances (`openhack` \| `mini-swe`); `TaskSpec.runner` overrides per task. |
 
 Package: `packages/openhack-orchestration/` — `AttackGraph`, `GraphStore`, `Frontier`, `HeuristicController`, `LlmController`. Tests live in `packages/openhack/test/` (run `bun test` from that package).
 
@@ -292,19 +327,80 @@ Lattice (vendored at `vendor/lattice/`, source of truth `src/lattice` — a Pyth
 - **`lattice-codeaudit <path>`** — one-shot auto-audit: detects languages, runs hunt (ranked structural bugs), secaudit (attack surface + source→sink reachability, findings labeled TAINTED vs reachable by interprocedural taint), diagnose (cycles/dead code/stubs) and triage (severity × blast radius). Writes JSON + Markdown to `.openhack/codeaudit/<name>-<stamp>/` (`-latest` symlink). Exit 0 clean · 1 critical/high · 2 unusable. All LSP waits are bounded (`LATTICE_LSP_TIMEOUT`, default 60s; per-leg cap `LATTICE_LEG_TIMEOUT`, default 600s).
 - **`/codeaudit <path>`** — the slash-command macro wrapping the same flow with finding-validation + CWE recording steps.
 - **Automode** — the `source-code-audit` orchestrator (priority 3, `general` subagent) audits any source discovered during a loop (exposed repo/`.git`, disclosure) and promotes confirmed TAINTED paths into findings.
-- Agents `recon`, `exploit`, `post-exploit` have `"lattice *"` / `"lattice-codeaudit *"` bash allows (read-only analysis); everyone else follows default permission rules.
+- **Write-path structural gate** (`packages/openhack/src/lattice.ts`) — every `write`/`edit`/`apply_patch` of a source file by ANY agent triggers a bounded differential `lattice verify` against `HEAD` (cooldown-bounded per repo, default 45s; timeout 20s). Regressions (broken symbols, unresolved imports, removed public API) touching the written file are appended to the tool result so the model self-corrects in the same turn. Advisory — never blocks a write. Engine-missing and failures surface ONCE with the exact fix; every failure is recorded in `Lattice.status()` — nothing is swallowed.
+- **Read-path annotation** — reading a source file surfaces known findings for that file from the latest `.openhack/codeaudit/*-latest` report at zero engine cost (gate: `lattice.read_annotate`, default true).
+- Agents `recon`, `exploit`, `post-exploit`, `osint`, `plan` have `"lattice *"` / `"lattice-codeaudit *"` (plus the `.openhack/tool/lattice-codeaudit.sh` path form) bash allows (read-only analysis); `build`/`cleanup` run with broad bash already. install.sh installs `~/.local/bin/lattice` + `~/.local/bin/lattice-codeaudit` shims so the documented bare invocations resolve.
+- Config (`.openhack/openhack.jsonc` → `lattice`): `enabled` (default true), `bin`, `timeout_ms`, `cooldown_ms`, `read_annotate`, `max_note_chars`.
 - Honesty contract: Lattice proves reachability/taint, not exploitability — agents must read flagged files before recording findings. Missing language toolchains appear as blind spots in every report, never as clean results.
 - Skill reference for agents: `.openhack/skills/lattice/SKILL.md`.
 
 ## Dynamic Context Runtime (DCR)
 
-Bounded attention over unbounded session history, per `cybersec.org.za/papers/dcr-bounded-attention.pdf`. When enabled, session history is ingested into the reference runtime (`vendor/subnext`, resolved as `$DCR_BIN` → `vendor/subnext/bin/dcr` → PATH; build with `vendor/subnext/bootstrap.sh`) and each provider turn receives a budgeted working set plus a verbatim recent tail instead of the full transcript. Compaction remains the overflow fallback.
+Bounded attention over unbounded session history, per [DCR-TR-2026-01](https://cybersec.org.za/research-dcr-bounded-attention.html). When enabled, session history is ingested into the reference runtime (`vendor/subnext`) and each provider turn receives a budgeted working set (~145–259 tokens) plus a verbatim recent tail instead of the full transcript. Compaction remains the overflow fallback. Full guide: `vendor/subnext/README.md`.
 
-- Enable: `"dcr": { "enabled": true }` in openhack config (or `DCR_ENABLED=1`). Options: `bin` (default `dcr`, or `DCR_BIN`), `budget` — B_attention in tokens (default 1200), `recentTokens` — verbatim tail budget (default 4000).
-- Per-session stores live under `~/.local/share/openhack/dcr/<sessionID>/` (`memory.dcr.json` + a turns directory of immutable per-message spans).
-- Escalation: the model may reply `#ESCALATE m<seq>` to demand raw bytes for a span; the next planning pass services it against B_attention. Runtime-native node ids ride its own routing.
-- Corrections: superseded values are annotated as NOTE lines in the window rather than hidden; stale facts are never planned.
-- Any runtime failure degrades that turn silently to the legacy full-history path.
+### Setup
+
+```bash
+vendor/subnext/bootstrap.sh        # build (idempotent; FORCE=1 rebuilds)
+vendor/subnext/bin/dcr demo         # verify: should show 8 stages, all passing
+export DCR_ENABLED=1                # enable for sessions (env path)
+```
+
+Or in openhack config (shipped enabled in `.openhack/openhack.jsonc`):
+```jsonc
+{ "dcr": { "enabled": true } }
+```
+
+Binary resolution: `$DCR_BIN` → `vendor/subnext/bin/dcr` → `dcr` on PATH. Requires Rust toolchain (rustc ≥ 1.85) to build. The installer (`install.sh`) bootstraps it automatically.
+
+### Configuration
+
+| Option | Config key | Env var | Default | Description |
+|---|---|---|---|---|
+| Enable | `dcr.enabled` | `DCR_ENABLED=1` | `false` | Master switch (the shipped engagement config enables it) |
+| Binary | `dcr.bin` | `DCR_BIN` | `"dcr"` | Binary path |
+| Budget | `dcr.budget` | — | `1200` | B_attention in tokens (working set cap) |
+| Recent tail | `dcr.recentTokens` | — | `4000` | Verbatim recent messages budget |
+
+The `dcr` block is honoured at BOTH session runtimes: the V2 `SessionRunner`
+reads it through core Config, and the V1 `SessionPrompt` (TUI, HTTP prompt
+handler, automode `run` instances) through ConfigStore — one context system at
+every level.
+
+### How it works
+
+Each turn, the bridge (`packages/core/src/session/dcr.ts`) does:
+
+1. **Write** — serialises new messages as immutable `m<seq>.txt` files (role markers stripped)
+2. **Ingest** — calls `dcr ingest` to index into the memory graph; contradictions detected automatically
+3. **Plan** — calls `dcr plan <query>` to assemble a budgeted working set using the cheapest sufficient representation (L0 raw → L1 summary → L2 structured state → L3 derivation)
+4. **Escalations** — any `#ESCALATE m<seq>` tokens from the prior assistant reply are resolved to raw bytes and prepended, charged against B_attention
+5. **Render** — wraps working set in `<session-context>` XML alongside the verbatim recent tail
+6. **Degrade** — any failure returns `undefined`; the session falls back to full history (5-second timeout enforced). The failure is recorded per session (`SessionDcr.degradation`) and logged as a warning by both runtimes — degradation is visible, never silent.
+
+### Storage
+
+Per-session stores under `~/.local/share/openhack/dcr/<sessionID>/`:
+- `memory.dcr.json` — the memory graph (nodes, edges, index)
+- `turns/m<seq>.txt` — immutable per-message spans (V2) / `m<hash(id)>.txt` (V1 span path)
+
+### Key properties
+
+- **Corrections win**: superseded values are excluded from planning, annotated as NOTE when appearing in evidence. Stale derivations are detected and invalidated.
+- **Provenance**: every fact traces to raw source spans via `dcr explain <node_id>`. An answer without a complete audit path is a failure.
+- **189× compression**: 27k tokens of history → 145 tokens per query, 7/7 correct (300 turns). Scales to 4.19M tokens at 259 tokens per query.
+- **Graceful degradation with an audit trail**: any runtime failure degrades that turn to the legacy full-history path, recorded + logged — never swallowed.
+- **One context system, every runtime**: V2 projects core `SessionMessage` entries (`assemble`); V1 projects `SessionV1.WithParts` (`assembleSpans` over `packages/openhack-cli/src/session/dcr-spans.ts`). Identical engine, budget model, escalation protocol and degradation contract.
+
+### Verification
+
+```bash
+vendor/subnext/bin/dcr bench              # 7/7 correct, ~145 tok mean
+vendor/subnext/bin/dcr bench --baselines  # vs RAG, summarize-all, recursive
+vendor/subnext/bin/dcr bench --ablate     # which mechanism carries which probe
+vendor/subnext/bin/dcr bench --tamper     # container tamper detection
+vendor/subnext/bin/dcr bench --diverse    # scaling to millions of tokens
+```
 
 ## Authorized Use Only
 

@@ -208,6 +208,17 @@ const layer = Layer.effect(
         settings: dcrSettings,
         escalate: SessionDcr.pendingEscalations(entries),
       })
+      // A degraded assembly falls back to full history — surfaced here so a
+      // wedged runtime is visible in logs instead of silently ignored.
+      if (!dcrContext && dcrSettings.enabled) {
+        const degraded = SessionDcr.degradation(session.id)
+        if (degraded)
+          yield* Effect.logWarning("dcr: working-set assembly degraded to full history", {
+            "session.id": session.id,
+            stage: degraded.stage,
+            error: degraded.error,
+          })
+      }
 
       const isLastStep = agent.info?.steps !== undefined && currentStep >= agent.info.steps
       const toolMaterialization = isLastStep ? undefined : yield* tools.materialize(agent.info?.permissions)

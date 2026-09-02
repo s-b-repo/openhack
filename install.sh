@@ -226,6 +226,16 @@ install_lattice(){
     info "Bootstrapping Lattice code-audit engine (vendored, no global install)"
     run "bash '$lattice_dir/bootstrap.sh'" || warn "Lattice bootstrap failed — /codeaudit will fall back to PATH"
     log "Lattice → $lattice_dir/.venv/bin/lattice (used automatically by lattice-codeaudit)"
+    # PATH shims: the agents' permission rules and the doctrine allow the bare
+    # `lattice` / `lattice-codeaudit` commands; without a shim the documented
+    # invocation fails to resolve. ~/.local/bin is on PATH by default.
+    if [ -x "$lattice_dir/.venv/bin/lattice" ]; then
+        mkdir -p "$HOME/.local/bin"
+        ln -sfn "$lattice_dir/.venv/bin/lattice" "$HOME/.local/bin/lattice"
+        printf '#!/usr/bin/env bash\nexec bash "%s/.openhack/tool/lattice-codeaudit.sh" "$@"\n' "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" > "$HOME/.local/bin/lattice-codeaudit"
+        chmod +x "$HOME/.local/bin/lattice-codeaudit"
+        log "PATH shims → ~/.local/bin/lattice, ~/.local/bin/lattice-codeaudit"
+    fi
 }
 
 install_dcr(){
@@ -288,8 +298,21 @@ if [ "$FULL" = "1" ]; then
     echo "  openhack config set mcp.filesystem.enabled true    # + git/fetch/memory as needed"
 fi
 
-# The code-audit engine is core tooling — bootstrap it on every path unless dry-running.
+# Core tooling — bootstrap on every path unless dry-running.
 install_lattice
+install_dcr
+
+# Live wiring report: every vendored framework component and whether its
+# artifact resolved (env override → vendored → PATH). Uses the CLI's own
+# vendored registry so the report and the runtime always agree.
+if [ -z "$DRY_RUN" ] && [ -d "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/vendor" ]; then
+    if command -v bun >/dev/null 2>&1; then
+        echo ""
+        info "Vendored framework components (resolution report):"
+        (cd "$(dirname "${BASH_SOURCE[0]}")" && bun run --cwd packages/openhack-cli --conditions=browser src/index.ts openhack vendors 2>/dev/null) \
+            || warn "vendor report skipped (CLI not runnable here) — check later with: openhack vendors"
+    fi
+fi
 
 
 echo ""

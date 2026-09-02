@@ -7,6 +7,7 @@ import { MiddlewareChain } from "../middleware"
 import { MOERouter } from "../moe-router"
 import { Orchestrator } from "../orchestrator"
 import { Codeguard } from "../codeguard"
+import { Lattice } from "../lattice"
 import { ShellTimeout } from "../shell-timeout"
 import { ConfigStore } from "../config-store"
 import { McpRecommend } from "../mcp-recommend"
@@ -115,6 +116,21 @@ function codeguardEnabled(): boolean {
     value = cfg.codeguard?.enabled !== false
   } catch {}
   cachedCodeguardEnabled = { at: now, mtimeMs, value }
+  return value
+}
+
+let cachedLatticeEnabled: { at: number; value: boolean } | null = null
+
+/** Whether the Lattice structural write/read gates are enabled (default on; disable via config). */
+function latticeEnabled(): boolean {
+  const now = Date.now()
+  if (cachedLatticeEnabled && now - cachedLatticeEnabled.at < HOT_TTL_MS) return cachedLatticeEnabled.value
+  let value = true
+  try {
+    const block = ConfigStore.get("lattice") as { enabled?: boolean } | undefined
+    value = block?.enabled !== false
+  } catch {}
+  cachedLatticeEnabled = { at: now, value }
   return value
 }
 
@@ -255,6 +271,33 @@ export async function OpenHackPlugin(_input: any) {
       if (note) {
         pendingWarnings.delete(input.callID)
         if (typeof output.output === "string") output.output = `${output.output}\n\n${note}`
+      }
+
+      // Lattice structural analysis while the AI codes: written source files get
+      // a bounded differential structural check (verify vs HEAD) appended to the
+      // tool result; read source files get known findings from the latest
+      // /codeaudit report. Advisory — never blocks — and every failure is
+      // surfaced once in the output, never swallowed.
+      if (typeof output.output === "string" && latticeEnabled()) {
+        try {
+          if (FILE_TOOLS.has(input.tool)) {
+            const filePath = Codeguard.extractContent(input.tool, (input.args ?? {}) as Record<string, unknown>)?.filePath
+            if (filePath) {
+              const latticeNote = await Lattice.guardWrittenFile(filePath)
+              if (latticeNote) output.output = `${output.output}\n\n${latticeNote}`
+            }
+          } else if (input.tool === "read") {
+            const filePath = String((input.args as Record<string, unknown> | undefined)?.["filePath"] ?? "")
+            if (filePath) {
+              const latticeNote = await Lattice.annotateRead(filePath)
+              if (latticeNote) output.output = `${output.output}\n\n${latticeNote}`
+            }
+          }
+        } catch (e: any) {
+          // The hook must never break the tool result, but the failure is
+          // recorded (visible via `openhack vendors` / status) — not swallowed.
+          console.warn(`[lattice] tool hook error (recorded): ${e?.message ?? e}`)
+        }
       }
       if (engagementActive() && typeof output.output === "string") {
         try {

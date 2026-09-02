@@ -200,6 +200,21 @@
       "command": ["bun", "run", "openhack-mcp-honeypot"],
       "enabled": false,
       "startupTimeout": 5000
+    },
+    // OSINT deep research — wraps the vendored gpt-researcher
+    // (vendor/gpt-researcher) for passive intelligence (CT logs, passive DNS,
+    // leak chatter, tech-stack recon). Enabled: the venv is bootstrapped by
+    // `OPENHACK_BOOTSTRAP_ALL=1 bash install.sh --full` or
+    // `openhack vendors --bootstrap gpt-researcher`; the tool degrades to a
+    // clear "not bootstrapped" error message when missing (never silent).
+    "osint-research": {
+      "type": "local",
+      "command": ["vendor/gpt-researcher/.venv/bin/python", "packages/openhack/mcp/osint_research.py"],
+      "enabled": true,
+      "startupTimeout": 15000,
+      "environment": {
+        "OPENHACK_RESEARCH_TIMEOUT_S": "600"
+      }
     }
   },
   "automode": {
@@ -285,6 +300,49 @@
     "enabled": true,
     "note": "Blocks the agent from writing error-swallowing, suppressed-diagnostic, and silent-stub patterns; warns on unchecked results / hardcoded secrets. Waive a false positive with an inline 'openhack-allow: <rule-id>' comment. See packages/openhack/src/codeguard.ts for rule ids."
   },
+  // ── Dynamic Context Runtime (packages/core/src/session/dcr.ts) ──
+  // Bounded attention over unbounded session history (vendor/subnext). Wired at
+  // BOTH session runtimes: the V2 SessionRunner and the V1 SessionPrompt (TUI,
+  // HTTP prompt handler, automode run instances). Any runtime failure degrades
+  // that turn to full history — logged, counted, never silent.
+  "dcr": {
+    "enabled": true,
+    "bin": "dcr",
+    "budget": 1200,
+    "recentTokens": 4000
+  },
+  // ── Lattice structural analysis (packages/openhack/src/lattice.ts) ──
+  // Static + dynamic code analysis while the AI reads and writes code: every
+  // write/edit of a source file gets a bounded differential structural check
+  // (verify vs HEAD) appended to the tool result; every read of a source file
+  // surfaces known findings from the latest /codeaudit report. Advisory —
+  // never blocks a write — and every failure is surfaced, never swallowed.
+  "lattice": {
+    "enabled": true,
+    "bin": "lattice",
+    "timeout_ms": 20000,
+    "cooldown_ms": 45000,
+    "read_annotate": true,
+    "max_note_chars": 1500
+  },
+  // ── Attack-graph controller + round engine (openhack-orchestration) ──
+  "graph": {
+    "controller_enabled": false,
+    "controller_model": "",
+    "frontier_k": 6,
+    "round_engine": "native"
+  },
+  // ── Temporal durable execution (vendor/temporal) ──
+  // The loop's durable round ledger (.openhack/rounds/<target>.jsonl, used by
+  // --resume) is always on. When enabled, each round record is additionally
+  // mirrored into a Temporal workflow via the `temporal` CLI (docker-compose
+  // service is the default server path). Mirror failures are logged, never fatal.
+  "temporal": {
+    "enabled": false,
+    "address": "localhost:7233",
+    "namespace": "default",
+    "task_queue": "openhack"
+  },
   "agent": {
     "build": {
       "permission": {
@@ -315,7 +373,10 @@
       "permission": {
         "mcp_*": "deny",
         "edit": "deny",
-        "bash": "deny"
+        "bash": { "*": "deny",
+                  // Lattice structural analysis is read-only — the planner may
+                  // run impact/verify to ground its plans in real structure.
+                  "lattice *": "allow", "lattice-codeaudit *": "allow", ".openhack/tool/lattice-codeaudit.sh *": "allow" }
       }
     },
     "phase-manager": {
@@ -331,13 +392,14 @@
         "edit": "deny",
         "bash": { "*": "ask", "nmap *": "allow", "rustscan *": "allow", "amass *": "allow", "subfinder *": "allow",
                   // Lattice structural code audit — read-only analysis, safe to auto-run.
-                  "lattice *": "allow", "lattice-codeaudit *": "allow" }
+                  "lattice *": "allow", "lattice-codeaudit *": "allow", ".openhack/tool/lattice-codeaudit.sh *": "allow" }
       },
       "mcp_tools": {
         "hexstrike": ["hexstrike_scan_*", "hexstrike_recon_*", "hexstrike_dns_*"],
         "pentestai": ["ptai_port_scan", "ptai_subdomain_enum", "ptai_service_fingerprint"],
         "rustsploit": ["rustsploit_scan_*"],
         "camoufox": ["camoufox_*"],
+        "osint-research": ["osint-research_*"],
         "blackboard": ["blackboard_*"],
         // Specialists can READ, DRAFT edits, and VALIDATE, but not sign/revoke.
         "roe": ["roe_status", "roe_validate", "roe_list_authorized_tools", "roe_list_authorized_models", "roe_validate_model", "roe_time_remaining_minutes", "roe_summary_markdown", "roe_get", "roe_create_draft", "roe_set_targets", "roe_set_authorized_tools", "roe_set_authorized_models", "roe_set_exclusions", "roe_set_expiry_days", "roe_set_notes", "roe_diff", "roe_add_authorized_model", "roe_remove_authorized_model"]
@@ -412,6 +474,21 @@
         "roe": ["roe_status", "roe_time_remaining_minutes"]
       },
       "tool_cap": 10
+    },
+    // OSINT specialist (doctrine: .openhack/agents/osint.md) — passive
+    // intelligence only. Gets the deep-research MCP + lattice read-only allows.
+    "osint": {
+      "permission": {
+        "edit": "deny",
+        "bash": { "*": "ask",
+                  "lattice *": "allow", "lattice-codeaudit *": "allow", ".openhack/tool/lattice-codeaudit.sh *": "allow" }
+      },
+      "mcp_tools": {
+        "osint-research": ["osint-research_*"],
+        "blackboard": ["blackboard_*"],
+        "roe": ["roe_status", "roe_validate", "roe_time_remaining_minutes"]
+      },
+      "tool_cap": 20
     }
   },
   "references": {

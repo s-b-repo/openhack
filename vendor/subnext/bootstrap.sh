@@ -14,6 +14,13 @@ set -eu
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OUT="$HERE/bin/dcr"
 
+# --check: silent probe for CI / install scripts (exit 0 if artifact exists)
+for arg in "$@"; do
+    if [ "$arg" = "--check" ]; then
+        [ -x "$OUT" ] && exit 0 || exit 1
+    fi
+done
+
 if [ -x "$OUT" ] && [ "${FORCE:-0}" != "1" ]; then
     echo "dcr already bootstrapped: $OUT (FORCE=1 to rebuild)"
     exit 0

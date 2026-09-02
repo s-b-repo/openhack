@@ -25,6 +25,9 @@ import { Combinations } from "../../../../openhack/src/combinations"
 import { Knowledge } from "../../../../openhack/src/knowledge"
 import { ConfigStore } from "../../../../openhack/src/config-store"
 import { GlobalConfig } from "../../../../openhack/src/global-config"
+import { MiniSwe } from "../../../../openhack/src/miniswe"
+import { DeepPlan } from "../../../../openhack/src/deepplan"
+import { Temporal } from "../../../../openhack/src/temporal"
 import { RoundBudget } from "../../../../openhack/src/round-budget"
 import { Managers } from "../../../../openhack/src/managers"
 import { Blackboard } from "../../../../openhack/src/blackboard"
@@ -36,6 +39,7 @@ import {
   HeuristicController,
   LlmController,
   LoopPhysics,
+  RoundEngine,
   Scores,
   type Controller,
   type ControllerInput,
@@ -53,9 +57,11 @@ export type LlmFn = (prompt: string) => Promise<LlmResult>
  * Opts a caller may pass to the factory instead of a bare agent string. Enables
  * per-task tier + macro dispatch: pass `{command: "council"}` to fire the
  * `.openhack/command/council.md` macro instead of a plain `--agent` invocation;
- * pass `{model: "deepseek/deepseek-v4"}` to override the loop's default.
+ * pass `{model: "deepseek/deepseek-v4"}` to override the loop's default;
+ * pass `{runner: "mini-swe"}` to execute the task through the vendored
+ * mini-swe-agent backend instead of the openhack subprocess runner.
  */
-export type LlmFactoryOpts = { agent?: string; command?: string; model?: string }
+export type LlmFactoryOpts = { agent?: string; command?: string; model?: string; runner?: string }
 /** Build an `llmFn` bound to a specific subagent (recon/exploit/…) or macro. */
 export type LlmFactory = (agentOrOpts?: string | LlmFactoryOpts) => LlmFn
 
@@ -82,8 +88,29 @@ export function resolveRunCmd(): string[] {
  * usage from the JSON event stream. Never rejects — a spawn/exec failure resolves
  * to an error-shaped result so the loop records it instead of crashing.
  */
-export function makeSubprocessLlmFn(opts: { agent?: string; model?: string; cwd?: string; timeoutMs?: number; command?: string }): LlmFn {
+export function makeSubprocessLlmFn(opts: { agent?: string; model?: string; cwd?: string; timeoutMs?: number; command?: string; runner?: string }): LlmFn {
   const base = resolveRunCmd()
+  // mini-swe-agent backend: opt-in per task (`runner: "mini-swe"`) or loop-wide
+  // (`automode.runner: "mini-swe"`). An explicit runner takes precedence over
+  // the agent dispatch (model resolution already happened via the tier system);
+  // macros always run through the openhack runner. The openhack subprocess
+  // runner stays the default for everything else.
+  const wantsMiniSwe = () =>
+    opts.runner !== "openhack" && opts.command === undefined && (opts.runner === "mini-swe" || (opts.runner === undefined && ConfigStore.get("automode.runner") === "mini-swe"))
+  if (wantsMiniSwe() && !opts.command && !opts.agent) {
+    return async (prompt) => {
+      const result = await MiniSwe.run({ prompt, model: opts.model, cwd: opts.cwd, timeoutMs: opts.timeoutMs })
+      return {
+        output: result.output || `[mini-swe-agent: ${result.error ?? "no output"}]`,
+        tokensIn: result.tokensIn,
+        tokensOut: result.tokensOut,
+        cost: result.cost,
+        ok: result.ok,
+        error: result.error,
+        latencyMs: result.latencyMs,
+      }
+    }
+  }
   return (prompt) =>
     new Promise<LlmResult>((resolve) => {
       const startedAt = Date.now()
@@ -243,6 +270,25 @@ export function listMacros(): string[] {
 function loadFindings(target: string): any[] {
   try { return Findings.load(target).findings ?? [] } catch { return [] }
 }
+/**
+ * Read the durable rounds ledger (.openhack/rounds/<target>.jsonl) — one JSON
+ * object per completed round. A corrupt line is skipped but counted (returned
+ * in `corrupt`), never silently ignored.
+ */
+function loadRoundsLedger(target: string): { records: Array<Record<string, any>>; corrupt: number } {
+  const file = path.join(".openhack", "rounds", `${target.replace(/[^a-zA-Z0-9.-]/g, "_")}.jsonl`)
+  let text: string
+  try { text = fs.readFileSync(file, "utf8") } catch { return { records: [], corrupt: 0 } }
+  const records: Array<Record<string, any>> = []
+  let corrupt = 0
+  for (const line of text.split("\n")) {
+    const t = line.trim()
+    if (!t) continue
+    try { records.push(JSON.parse(t)) } catch { corrupt++ }
+  }
+  if (corrupt > 0) out(`  rounds ledger: ${corrupt} corrupt line(s) skipped (${file})`)
+  return { records, corrupt }
+}
 function countHighValue(findings: any[]): number {
   return findings.filter((f) => (f.severity === "critical" || f.severity === "high") && f.status !== "false_positive").length
 }
@@ -326,6 +372,12 @@ export interface LoopOptions {
   graph?: boolean
   /** Frontier width per round when the graph is active. Default 6. */
   frontierK?: number
+  /**
+   * Resume a previously interrupted loop: read `.openhack/rounds/<target>.jsonl`,
+   * start at the last recorded round + 1 (findings/coverage/graph persist on
+   * disk), and skip the redundant pre-loop planning step.
+   */
+  resume?: boolean
   /**
    * Optional generator for the LLM graph controller — the caller (usually the
    * `openhack automode` CLI) resolves it from `Provider.getSmallModel` +
@@ -587,7 +639,7 @@ export async function runOrchestrationLoop(target: string, opts: LoopOptions): P
 
     const baseLlmFn = task.command
       ? opts.makeLlmFn({ command: task.command, model: taskModel, agent })
-      : opts.makeLlmFn({ agent, model: taskModel })
+      : opts.makeLlmFn({ agent, model: taskModel, runner: task.runner })
     // Wrap to capture real per-role latency for o5 (mean over the round's instances).
     const llmFn: typeof baseLlmFn =
       o5On && agent
@@ -637,7 +689,16 @@ export async function runOrchestrationLoop(target: string, opts: LoopOptions): P
       })
       let plan: Managers.Plan | null = null
       try {
-        const res = await opts.makeLlmFn({ agent: "phase-manager", model: managerModel })(prompt)
+        const deepBackend = String(ConfigStore.get("managers.backend") ?? "native") === "deepagents"
+        const res = deepBackend
+          ? await (async () => {
+              const deep = await DeepPlan.complete({ prompt, model: managerModel })
+              if (deep.ok) return { ok: true as const, output: deep.output }
+              log(`    manager ${phase}: deepagents backend failed (${deep.error ?? "unknown"}) → native planner`)
+              const native = await opts.makeLlmFn({ agent: "phase-manager", model: managerModel })(prompt)
+              return { ok: (native.ok !== false) as boolean, output: native.output }
+            })()
+          : await opts.makeLlmFn({ agent: "phase-manager", model: managerModel })(prompt)
         if (res.ok !== false) plan = Managers.parsePlan(phase, res.output, allowed)
       } catch (e: any) {
         log(`    manager ${phase}: soft error — ${e?.message ?? e}`)
@@ -663,11 +724,29 @@ export async function runOrchestrationLoop(target: string, opts: LoopOptions): P
     return merged.filter((t) => (seen.has(t.id) ? false : (seen.add(t.id), true)))
   }
 
+  // Durable resume: the rounds ledger (.openhack/rounds/<target>.jsonl) records
+  // every completed round. With --resume, continue after the last recorded
+  // round — findings, coverage and the attack graph persist on disk, so the
+  // resumed loop picks up the engagement state instead of restarting.
+  let resumeRound = 0
+  if (opts.resume) {
+    const ledger = loadRoundsLedger(target)
+    const last = ledger.records[ledger.records.length - 1]
+    resumeRound = last ? Number(last.round) || 0 : 0
+    if (resumeRound > 0) {
+      log(`Resume: ${ledger.records.length} round(s) recorded for ${target}; continuing after round ${resumeRound}`)
+      log(`  last recorded: cost $${Number(last.totalCostUsd ?? 0).toFixed(3)}, ${last.findingsTotal ?? "?"} findings (${last.findingsHigh ?? 0} high)`)
+    } else {
+      log(`Resume: no prior rounds recorded — starting fresh`)
+    }
+  }
+
   // Planning phase (default on): produce a prioritized plan before executing.
   // Prefer the `/plan` slash-command macro so the protocol lives in one place
   // (`.openhack/command/plan.md` if present); fall back to the inline
   // PLAN_PROMPT paraphrase when the macro isn't available or errors out.
-  if (plan) {
+  // Skipped on resume — the engagement already has a plan on disk.
+  if (plan && resumeRound === 0) {
     log(`  ▶ planning (plan agent)`)
     let macroOk = false
     try {
@@ -685,7 +764,7 @@ export async function runOrchestrationLoop(target: string, opts: LoopOptions): P
     }
   }
 
-  let round = 0
+  let round = resumeRound
   let prevCost = 0
   // Adaptive round budget: the caller-supplied `opts.maxRounds` is the starting
   // ceiling but the loop can extend it up to `RoundBudget.hardCeiling` if the
@@ -727,7 +806,17 @@ export async function runOrchestrationLoop(target: string, opts: LoopOptions): P
         log(`  managers: empty plan → static batch`)
       }
     } else if (graphSnapshot && round > 1) {
-      const front = AttackGraph.frontier(graphSnapshot, frontierK)
+      // Frontier selection is a swappable engine: `native` (default) keeps the
+      // historical AttackGraph ordering verbatim; `langgraph` runs the same
+      // contract through the vendored-langgraph StateGraph pipeline; `auto`
+      // tries langgraph and falls back with a recorded reason.
+      const engineName = String(ConfigStore.get("graph.round_engine") ?? "native") as "native" | "langgraph" | "auto"
+      const selection = await RoundEngine.selectFrontier(
+        { queued: AttackGraph.frontier(graphSnapshot, Number.MAX_SAFE_INTEGER), k: frontierK },
+        engineName,
+      )
+      if (selection.note) log(`  graph: ${selection.note}`)
+      const front = selection.selected
       if (front.length) {
         activeTasks = front.map((a) => {
           const spec = AttackGraph.toTaskSpec(a)
@@ -829,7 +918,10 @@ export async function runOrchestrationLoop(target: string, opts: LoopOptions): P
     // Per-round telemetry — one JSONL line per round to .openhack/rounds/<target>.jsonl.
     // This is the source-of-truth stream a post-hoc analyzer or the bench harness reads
     // to visualize convergence, cost, controller latency, and combo-close rate across
-    // rounds without having to reconstruct anything from opaque log lines.
+    // rounds without having to reconstruct anything from opaque log lines. It is also
+    // the durable resume ledger (--resume) and, when `temporal.enabled`, each record is
+    // mirrored into a Temporal workflow as a durable event.
+    let roundRecord: Record<string, unknown> | null = null
     try {
       const roundsDir = path.join(".openhack", "rounds")
       fs.mkdirSync(roundsDir, { recursive: true })
@@ -849,9 +941,22 @@ export async function runOrchestrationLoop(target: string, opts: LoopOptions): P
         })(),
         frontierSize: graphSnapshot ? AttackGraph.frontier(graphSnapshot, 100).length : 0,
         rssMb: Math.round((process.memoryUsage().rss / 1024 / 1024) * 10) / 10,
+        tasks: activeTasks.map((t) => ({ id: t.id, agent: t.agent ?? null, command: t.command ?? null, runner: t.runner ?? null })),
       }
+      roundRecord = rec
       fs.appendFileSync(path.join(roundsDir, `${safeTgt}.jsonl`), JSON.stringify(rec) + "\n")
-    } catch {}
+    } catch (e: any) {
+      // Telemetry is load-bearing (resume + bench read it) — never swallowed.
+      log(`  rounds ledger write failed (soft): ${e?.message ?? e}`)
+    }
+
+    // Temporal durable mirror (opt-in via temporal.enabled). Best-effort and
+    // always visible: a mirror failure is logged with the fix, never thrown.
+    if (roundRecord && Temporal.config().enabled) {
+      const mirror = await Temporal.mirrorRound(roundRecord)
+      if (mirror.ok) log(`  temporal: round ${round} mirrored (workflow ${mirror.workflowID})`)
+      else log(`  temporal mirror skipped: ${mirror.error}`)
+    }
 
     // Graph-controller score persistence — record what agent kinds were
     // dispatched this round and what deltas they produced. Cross-run: on the
@@ -1074,7 +1179,7 @@ export async function runAutomodeCli(argv: any): Promise<void> {
     const opts = typeof agentOrOpts === "string" || agentOrOpts == null
       ? { agent: agentOrOpts ?? undefined }
       : agentOrOpts
-    return makeSubprocessLlmFn({ agent: opts.agent, model: opts.model ?? model, command: opts.command, timeoutMs })
+    return makeSubprocessLlmFn({ agent: opts.agent, model: opts.model ?? model, command: opts.command, runner: opts.runner, timeoutMs })
   }
 
   // ── Orchestrator modes (loop / execute / plan) ────────────────────────────
@@ -1120,6 +1225,7 @@ export async function runAutomodeCli(argv: any): Promise<void> {
       plan: argv.plan !== false,
       graph: argv.graph === true ? true : argv.graph === false ? false : undefined,
       frontierK: argv["frontier-k"] != null ? Number(argv["frontier-k"]) : undefined,
+      resume: argv.resume === true,
       graphGenerate: makeGraphGenerate({ model: controllerModel, log: out }),
       makeLlmFn, log: out,
     })

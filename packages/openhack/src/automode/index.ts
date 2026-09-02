@@ -34,6 +34,13 @@ export namespace Automode {
      * falls back to its agent-doctrine fan-out.
      */
     instances?: number
+    /**
+     * Execution backend for this task. "openhack" (default) spawns the openhack
+     * CLI's own `run` subcommand; "mini-swe" runs the task through the vendored
+     * mini-swe-agent (`vendor/mini-swe-agent`). A missing backend fails the task
+     * with the exact bootstrap fix — it never silently falls back.
+     */
+    runner?: "openhack" | "mini-swe"
   }
 
   export interface BatchConfig {

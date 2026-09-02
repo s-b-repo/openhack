@@ -72,3 +72,21 @@ services:
       # Refuse to start without an explicit strong secret — no insecure default.
       - SECRET_KEY=${SYSREPTOR_SECRET:?SYSREPTOR_SECRET must be set to a strong random value (e.g. openssl rand -hex 32)}
       - DATABASE_URL=sqlite:///db.sqlite3
+
+  # Durable-execution backend (vendor/temporal seam). When this service is up,
+  # set temporal.enabled=true in .openhack/openhack.jsonc and the automode loop
+  # mirrors every round record into a Temporal workflow (durable, queryable
+  # event history; worker integration is the documented next step).
+  temporal:
+    image: ${TEMPORAL_IMAGE:-temporalio/auto-setup:latest}
+    container_name: openhack-temporal
+    networks:
+      openhack-net:
+        ipv4_address: "${TEMPORAL_IP:-10.99.0.15}"
+    restart: unless-stopped
+    ports:
+      - "${TEMPORAL_PORT:-7233}:7233"
+    environment:
+      - DB=sqlite
+      - DB_PORT=5432
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sqlite.yaml

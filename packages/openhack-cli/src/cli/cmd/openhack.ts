@@ -18,6 +18,7 @@ import { Scores } from "../../../../openhack-orchestration/src"
 import { Knowledge } from "../../../../openhack/src/knowledge"
 import { Presets } from "../../../../openhack/src/presets"
 import { McpRecommend } from "../../../../openhack/src/mcp-recommend"
+import { Vendors } from "../../../../openhack/src/vendors"
 
 function log(msg: string) { process.stdout.write(msg + EOL) }
 function ok(msg: string) { process.stdout.write(`\x1b[32m✓\x1b[0m ${msg}` + EOL) }
@@ -457,7 +458,8 @@ export const OpenHackCommand = cmd({
         .option("model", { type: "string", describe: "model override (provider/model)" })
         .option("timeout", { type: "number", describe: "per-objective timeout in seconds (default 1800)" })
         .option("graph", { type: "boolean", describe: "enable the AI-driven attack-graph controller (round 1 warm-start, rounds 2+ dispatch top-k frontier)" })
-        .option("frontier-k", { type: "number", describe: "frontier width per round when graph is active (default 6)" }),
+        .option("frontier-k", { type: "number", describe: "frontier width per round when graph is active (default 6)" })
+        .option("resume", { type: "boolean", describe: "resume an interrupted loop: continue after the last round recorded in .openhack/rounds/<target>.jsonl" }),
         async (argv: any) => {
           try {
             const { runAutomodeCli } = await import("./openhack.automode")
@@ -623,6 +625,28 @@ export const OpenHackCommand = cmd({
             if (argv.reset) { GlobalConfig.reset(); ok("Models reset to defaults"); }
             else if (argv.set) { GlobalConfig.useCustomModel(argv.set); ok(`All models set to: ${argv.set}`); }
             log(GlobalConfig.getStatus())
+          } catch (e: any) { log(`Error: ${e.message}`) }
+        })
+      .command("vendors", "status of every vendored framework component (vendor/)", (y: any) => y
+        .option("json", { type: "boolean", describe: "emit machine-readable JSON" })
+        .option("bootstrap", { type: "string", describe: "bootstrap one component by name (e.g. lattice) before reporting" }),
+        async (argv: any) => {
+          try {
+            if (argv.bootstrap) {
+              log(`bootstrapping ${argv.bootstrap} (bounded; output streams to the end)…`)
+              const result = await Vendors.bootstrap(String(argv.bootstrap))
+              if (result.ok) ok(`bootstrap ${result.name}: ok`)
+              else warn(`bootstrap ${result.name} failed: ${result.error}`)
+              if (result.output.trim()) log(result.output.trim().split("\n").slice(-12).join("\n"))
+            }
+            const statuses = Vendors.status(argv.bootstrap ? String(argv.bootstrap) : undefined)
+            if (argv.json) { log(JSON.stringify(statuses, null, 2)); return }
+            log("")
+            log("\x1b[1m▸ Vendored framework components:\x1b[0m")
+            log(Vendors.format(statuses))
+            const missing = statuses.filter((s) => !s.bin)
+            if (missing.length)
+              log(`\n  ${missing.length} missing — bootstrap with: bash vendor/<dir>/bootstrap.sh  ·  or: openhack vendors --bootstrap <name>`)
           } catch (e: any) { log(`Error: ${e.message}`) }
         })
       .demandCommand(),

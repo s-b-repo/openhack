@@ -13,14 +13,45 @@ import { Plugin } from "@/plugin"
 import type { TaskPromptOps } from "@/tool/task"
 import { type Tool as AITool, tool, jsonSchema, type ToolExecutionOptions, asSchema } from "ai"
 import { Effect } from "effect"
-import { MessageV2 } from "./message-v2"
 import { Session } from "./session"
 import { SessionProcessor } from "./processor"
 import { PartID } from "./schema"
 import { EffectBridge } from "@/effect/bridge"
-import { ProviderV2 } from "@openhack-ai/core/provider"
 import { ModelV2 } from "@openhack-ai/core/model"
 import { isRecord } from "@/util/record"
+import { ConfigStore } from "../../../openhack/src/config-store"
+
+/**
+ * Agent-scoped MCP tool grants (`agent.<name>.mcp_tools` in the engagement
+ * config) — the documented wiring for "this agent may only use these MCP
+ * tools". Maps server name → tool patterns (`"server_*"` / `"server_scan_*"` /
+ * `"*"` for everything on that server). Returns null when the agent has no
+ * grants configured (all MCP tools stay available — the historical behavior).
+ */
+function mcpToolFilter(agentName: string): ((toolKey: string) => boolean) | null {
+  let grants: Record<string, unknown> | undefined
+  try {
+    grants = ConfigStore.get(`agent.${agentName}.mcp_tools`) as Record<string, unknown> | undefined
+  } catch (error) {
+    console.warn(`[mcp_tools] failed to read grants for agent "${agentName}": ${error instanceof Error ? error.message : String(error)}`)
+    return null
+  }
+  if (!grants || typeof grants !== "object") return null
+  const prefixes: string[] = []
+  for (const [server, patterns] of Object.entries(grants)) {
+    if (!Array.isArray(patterns)) continue
+    for (const raw of patterns) {
+      if (typeof raw !== "string" || !raw) continue
+      const serverPrefix = `${server}_`.replace(/[^a-zA-Z0-9_-]/g, "_")
+      if (raw === "*") prefixes.push(serverPrefix)
+      else if (raw.startsWith("*")) prefixes.push("") // explicit grant-all
+      else if (raw.includes("*")) prefixes.push(raw.split("*")[0]!.replace(/[^a-zA-Z0-9_-]/g, "_"))
+      else prefixes.push(raw.replace(/[^a-zA-Z0-9_-]/g, "_") + "_")
+    }
+  }
+  if (!prefixes.length) return null
+  return (toolKey: string) => prefixes.some((prefix) => prefix === "" || toolKey.startsWith(prefix))
+}
 
 const MCP_RESOURCE_TOOLS = {
   list: "list_mcp_resources",
@@ -381,9 +412,17 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
     })
   }
 
+  const mcpFilter = mcpToolFilter(input.agent.name)
+  let mcpToolsFiltered = 0
+  const mcpToolKeys: string[] = []
   for (const [key, item] of Object.entries(yield* mcp.tools())) {
     const execute = item.execute
     if (!execute) continue
+    if (mcpFilter && !mcpFilter(key)) {
+      mcpToolsFiltered++
+      continue
+    }
+    mcpToolKeys.push(key)
 
     const schema = yield* Effect.promise(() => Promise.resolve(asSchema(item.inputSchema).jsonSchema))
     const transformed = ProviderTransform.schema(input.model, { ...schema, properties: schema.properties ?? {} })
@@ -481,6 +520,26 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
       )
     tools[key] = item
   }
+
+  // `agent.<name>.tool_cap`: hard ceiling on the model-facing tool count. MCP
+  // tools (added last) are trimmed first, never the built-ins. The trim is
+  // logged so a silently shrinking toolset is visible.
+  const toolCap = Number(ConfigStore.get(`agent.${input.agent.name}.tool_cap`) ?? 0) || 0
+  if (toolCap > 0 && Object.keys(tools).length > toolCap) {
+    const excess = Object.keys(tools).length - toolCap
+    const dropped = mcpToolKeys.slice(-excess)
+    for (const key of dropped) delete tools[key]
+    yield* Effect.logWarning("tool_cap: trimmed MCP tools to the configured ceiling", {
+      agent: input.agent.name,
+      cap: toolCap,
+      dropped: dropped.join(","),
+    })
+  }
+  if (mcpToolsFiltered > 0)
+    yield* Effect.logInfo("mcp_tools: filtered MCP tools per agent grants", {
+      agent: input.agent.name,
+      filtered: mcpToolsFiltered,
+    })
 
   return tools
 })

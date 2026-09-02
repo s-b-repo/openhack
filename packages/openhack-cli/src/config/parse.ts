@@ -75,6 +75,8 @@ export function schema<S extends EffectSchema.Decoder<unknown, never>>(
 // both CLI settings (provider/permission/mcp/…) and engine settings; these keys are
 // consumed by the engine (ConfigStore in `@openhack-ai/openhack`), not the CLI
 // schema. The CLI must tolerate — not reject — them so the shared config file loads.
+// Keep this in sync with the engine blocks shipped in `.openhack/openhack.jsonc`
+// (and the packages/openhack/src/*.ts modules that read them via ConfigStore).
 const OPENHACK_ENGINE_KEYS = new Set([
   "scope",
   "safety",
@@ -86,6 +88,14 @@ const OPENHACK_ENGINE_KEYS = new Set([
   "shell",
   "tool_presets",
   "deception",
+  "physics",
+  "managers",
+  "blackboard",
+  "o5",
+  "dcr",
+  "lattice",
+  "temporal",
+  "vendors",
 ])
 
 function topLevelExtraKeys(schema: EffectSchema.Top, data: unknown) {
