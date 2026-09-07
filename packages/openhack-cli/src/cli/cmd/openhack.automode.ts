@@ -41,6 +41,9 @@ import {
   LoopPhysics,
   RoundEngine,
   Scores,
+  AdaptiveHarness,
+  HarnessEngineer,
+  HarnessStore,
   type Controller,
   type ControllerInput,
   type FindingLike,
@@ -340,6 +343,26 @@ function physicsConfig(): {
   }
 }
 
+/**
+ * Adaptive-harness config (§ @openhack/orchestration `AdaptiveHarness`). Off by
+ * default — like managers / o5 / graph, an absent or `false` block reproduces the
+ * prior loop behavior exactly. When on, the harness watches the round trajectory
+ * for bad agent-loop / coding patterns, injects the installed patches' guidance,
+ * honors a soft instance cap, logs recovery advisories, and at end-of-run
+ * synthesizes candidate patches (persisted disabled until reruns reward them).
+ */
+function harnessConfig(): AdaptiveHarness.Config {
+  const d = AdaptiveHarness.DEFAULT_CONFIG
+  return {
+    enabled: Boolean(ConfigStore.get("harness.enabled") ?? false),
+    minConfidence: Number(ConfigStore.get("harness.min_confidence") ?? d.minConfidence) || d.minConfidence,
+    honorGates: ConfigStore.get("harness.honor_gates") !== false,
+    injectGuidance: ConfigStore.get("harness.inject_guidance") !== false,
+    learn: ConfigStore.get("harness.learn") !== false,
+    detector: d.detector,
+  }
+}
+
 export interface LoopOptions {
   ids?: string[]
   maxRounds: number
@@ -587,6 +610,34 @@ export async function runOrchestrationLoop(target: string, opts: LoopOptions): P
   if (managersOn) log(`  managers: enabled (5-phase planners, tier=${managersCfg.tier})`)
   if (o5On) log(`  o5/Overwatch: enabled (review every ${o5cfg.reviewEvery} rounds, ε=${o5cfg.epsilon})`)
   if (blackboardOn) log(`  blackboard: enabled (retain ${retainRounds} rounds)`)
+
+  // ── Adaptive harness (Harness-R1 port) — first-class pipeline, not a plugin ──
+  // On by default. The r1 cold-start installs a deliberately-dull prior
+  // (frontier cap=1, demote_score=0.5, breadth-first recon rewrite) so the
+  // learned r2+ pipeline always has a known-bad baseline to measure ΔB against.
+  // r2+ candidates (synthesized at end-of-run, persisted disabled) install only
+  // when a rerun rewards them via `recordReward` / `HarnessStore.setEnabled`.
+  const harnessCfg = harnessConfig()
+  let harnessState = harnessCfg.enabled ? HarnessStore.load(target) : null
+  if (harnessCfg.enabled && harnessState && HarnessStore.enabledPatches(harnessState).length === 0) {
+    // Cold-start: install the r1 dull prior as a single enabled patch. The
+    // engineer will synthesize learned candidates on top at finish(); the
+    // tuner (bench:tune) can later install a *better* patch over this one.
+    const prior = HarnessEngineer.dullR1PriorPatch()
+    if (prior) {
+      harnessState = HarnessStore.upsertPatch(harnessState, prior)
+      HarnessStore.save(harnessState)
+      log(`  harness: cold-start — installed r1 dull prior (3 hooks, cap=1, demote=0.5)`)
+    }
+  }
+  const harness =
+    harnessCfg.enabled && harnessState
+      ? AdaptiveHarness.start({ target, config: harnessCfg, installed: HarnessStore.enabledPatches(harnessState) })
+      : null
+  if (harness && harnessState) {
+    const installed = HarnessStore.enabledPatches(harnessState)
+    log(`  harness: enabled (min-confidence ${harnessCfg.minConfidence}, ${installed.length} installed patch(es)${installed[0]?.provenance === "r1_prior" ? "; r1 prior active" : ""})`)
+  }
 
   // Dispatch one objective instance: consult MoE (records routing every phase), apply
   // the instance lens, and execute. A distinct id per instance keeps result files apart.
@@ -836,6 +887,34 @@ export async function runOrchestrationLoop(target: string, opts: LoopOptions): P
       }
     }
 
+    // Adaptive harness — first-class pre-dispatch gate. Honors every installed
+    // effect on the round's task set: cap, demote (logged for the frontier
+    // scorer), block (drops tasks), rewrite (folded into prompts), and
+    // guidance (prepended). Records every dispatch so next round can detect
+    // loop-flail.
+    if (harness) {
+      const gate = harness.beforeDispatch(activeTasks)
+      activeTasks = gate.tasks
+      if (gate.instanceCap != null) log(`  harness: instance cap ${gate.instanceCap} applied (n=${activeTasks.length} tasks survive)`)
+      if (gate.dropped.length) {
+        log(`  harness: dropped ${gate.dropped.length} task(s) — ${gate.dropped.map((d) => `${d.id} (${d.reason})`).join(", ")}`)
+        for (const d of gate.dropped) harness.record({ kind: "dispatch", round, objective: d.id, blocked: true })
+      }
+      if (gate.scoreMultiplier !== 1) log(`  harness: frontier score demoted by ×${gate.scoreMultiplier.toFixed(2)}`)
+      if (gate.guidance.length) {
+        const guidanceBlock = `<harness-guidance>\n${gate.guidance.map((g) => `- ${g}`).join("\n")}\n</harness-guidance>\n\n`
+        activeTasks = activeTasks.map((t) => ({ ...t, prompt: guidanceBlock + (t.prompt ?? "") }))
+        log(`  harness: injected ${gate.guidance.length} guidance line(s) into round prompts`)
+      }
+      for (const t of activeTasks) {
+        harness.record({ kind: "dispatch", round, agent: t.agent, objective: t.id, instances: instancesForTask(t.agent, t.instances) })
+      }
+      if (activeTasks.length === 0) {
+        log(`  harness: round gated to zero tasks — skipping dispatch`)
+        continue
+      }
+    }
+
     const activePriorities = [...new Set(activeTasks.map((t) => t.priority ?? 3))].sort((a, b) => a - b)
     for (const pri of activePriorities) {
       const group = activeTasks.filter((t) => (t.priority ?? 3) === pri)
@@ -1050,6 +1129,32 @@ export async function runOrchestrationLoop(target: string, opts: LoopOptions): P
     }
 
 
+    // Adaptive harness — post-round feedback. Record this round's deltas (cost
+    // must be read BEFORE prevCost is advanced below), re-detect over the whole
+    // trajectory, and log the on_post_step recovery advisories the installed
+    // patches raise. Purely advisory — the loop's own gates still decide.
+    if (harness) {
+      let perInstanceTok: number | undefined
+      try {
+        const tok = session.results.reduce((a, r) => a + (r.tokensUsed?.input ?? 0) + (r.tokensUsed?.output ?? 0), 0)
+        if (session.results.length > 0) perInstanceTok = Math.round(tok / session.results.length)
+      } catch {}
+      harness.recordRound(round, {
+        newFindings,
+        newHigh,
+        costUsd: session.totalCost - prevCost,
+        contextTokens: perInstanceTok,
+        instances: activeTasks.reduce((a, t) => a + instancesForTask(t.agent, t.instances), 0),
+      })
+      const detected = harness.detections()
+      if (detected.length > 0) log(`  harness: ${AdaptiveHarness.summarize(detected)}`)
+      const post = harness.postStep()
+      if (post.forceVerification.length > 0) log(`  harness: advises verification — ${post.forceVerification[0]}`)
+      if (post.compact) log(`  harness: advises transcript compaction before the next round`)
+      if (post.freshInstance) log(`  harness: advises fresh instances over extending this one`)
+      if (post.throttle) log(`  harness: advises throttling — cost/progress is unfavorable`)
+    }
+
     prevCost = session.totalCost
 
     if (session.status === "cost_limited") { log("Terminating: batch budget reached."); break }
@@ -1134,6 +1239,23 @@ export async function runOrchestrationLoop(target: string, opts: LoopOptions): P
     prevTotal = total
     prevHigh = high
     prevVerified = countVerified(findings)
+  }
+
+  // Adaptive harness — close the observation window: synthesize validated,
+  // ranked candidate patches from the whole run and persist them DISABLED
+  // (upsert by content id so a re-proposed candidate updates in place). They
+  // install only when a later rerun rewards them (bench / rerun driver).
+  if (harness && harnessState) {
+    try {
+      const fin = harness.finish()
+      let next = harnessState
+      for (const candidate of fin.candidates) next = HarnessStore.upsertPatch(next, candidate)
+      HarnessStore.save(next)
+      harnessState = next
+      log(`  harness: ${fin.candidates.length} candidate patch(es) from ${fin.trajectory.steps.length} step(s) → persisted disabled (rerun to reward)`)
+    } catch (e: any) {
+      log(`  harness: soft error at finish — ${e?.message ?? e}`)
+    }
   }
 
   if (reportTask) {

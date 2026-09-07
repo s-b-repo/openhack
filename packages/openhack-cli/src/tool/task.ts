@@ -40,6 +40,14 @@ const BACKGROUND_UPDATED = [
   "Work on non-overlapping tasks, or briefly tell the user what you sent and end your response.",
 ].join("\n")
 
+/**
+ * Defense-in-depth nesting cap for recursive subagent dispatch. A runaway or
+ * malicious agent must not be able to fan out tasks without bound; upstream
+ * (anomalyco/opencode #37124) sets this to 5. The limit is also overridable
+ * via `OPENHACK_MAX_SUBAGENT_DEPTH` so operators can raise or lower it.
+ */
+const MAX_SUBAGENT_DEPTH = Math.max(1, Number(process.env.OPENHACK_MAX_SUBAGENT_DEPTH ?? "5"))
+
 const BaseParameterFields = {
   description: Schema.String.annotate({ description: "A short (3-5 words) description of the task" }),
   prompt: Schema.String.annotate({ description: "The task for the agent to perform" }),
@@ -121,6 +129,32 @@ export const TaskTool = Tool.define(
       const session = params.task_id
         ? yield* sessions.get(SessionID.make(params.task_id)).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
         : undefined
+      // Defense-in-depth nesting cap (upstream opencode #37124): a runaway or
+      // malicious agent must not be able to fan out subagent tasks without
+      // bound. We compute the caller's depth by walking the session's
+      // `parentID` chain, then refuse (or — for a resumed task — pass) when
+      // the next spawn would exceed `MAX_SUBAGENT_DEPTH`. Bounded to avoid
+      // unbounded walking if the parent chain is ever corrupted.
+      const isResume = params.task_id !== undefined && session !== undefined
+      if (!isResume) {
+        let current: SessionID | undefined = ctx.sessionID
+        let depth = 0
+        for (let step = 0; step < MAX_SUBAGENT_DEPTH + 1 && current; step++) {
+          const info: { parentID?: SessionID } | undefined = yield* sessions.get(current).pipe(Effect.catch(() => Effect.succeed(undefined)))
+          const parent: SessionID | undefined = info?.parentID
+          if (!parent) break
+          depth++
+          current = parent
+        }
+        if (depth >= MAX_SUBAGENT_DEPTH) {
+          return yield* Effect.fail(
+            new Error(
+              `subagent nesting depth limit reached (${MAX_SUBAGENT_DEPTH}). ` +
+                `Raise OPENHACK_MAX_SUBAGENT_DEPTH to allow deeper chains, or reduce nested task tool calls.`,
+            ),
+          )
+        }
+      }
       const parent = yield* sessions.get(ctx.sessionID)
       const childPermission = deriveSubagentSessionPermission({
         parentSessionPermission: parent.permission ?? [],

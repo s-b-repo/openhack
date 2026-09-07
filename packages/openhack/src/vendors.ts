@@ -18,6 +18,15 @@ import { Exec } from "./exec"
 
 export type Kind = "engine" | "backend" | "library" | "server"
 
+/**
+ * Probe — a bounded, optional smoke check for a component's artifact. Probes
+ * are declared alongside the component and run via `Vendors.probe(name)`. Each
+ * probe reports its result to `probeResults` (never thrown away) and is
+ * skipped (with a recorded "skipped" result) when its prerequisites are missing.
+ */
+export type ProbeResult = { ok: true; detail: string } | { ok: false; detail: string; skipped?: boolean }
+export type ProbeFn = (rootDir: string) => Promise<ProbeResult>
+
 export interface Component {
   name: string
   /** Directory under `vendor/`. */
@@ -35,6 +44,8 @@ export interface Component {
   kind: Kind
   /** Bare name used for the PATH fallback ("-" = no PATH fallback). */
   pathName: string
+  /** Optional bounded smoke checks for the component's artifacts. */
+  probes?: ProbeFn[]
 }
 
 export const COMPONENTS: Component[] = [
@@ -105,9 +116,40 @@ export const COMPONENTS: Component[] = [
     artifact: "vendor/graphbit/target/release",
     env: "OPENHACK_GRAPHBIT_LIB",
     bootstrap: "vendor/graphbit/bootstrap.sh",
-    seam: "native Rust agent-runtime library (artifact probe via `openhack vendors`)",
+    seam: "native Rust agent-runtime library + Python bindings (PyO3); smoke probe in `Vendors.probe(\"graphbit\")`",
     kind: "library",
     pathName: "-",
+    probes: [
+      // Node probe: bounded check of the Rust library artifact directory.
+      // Recorded as skipped (never swallowed) when the dir doesn't exist.
+      async (rootDir) => {
+        const dir = path.join(rootDir, "vendor", "graphbit", "target", "release")
+        try {
+          if (!fs.existsSync(dir))
+            return { ok: false, skipped: true, detail: `rust library not built: ${dir} (run \`openhack vendors --bootstrap graphbit\`)` }
+          const files = fs.readdirSync(dir).filter((name) => /^libgraphbit.*\.so$/.test(name) || /^libgraphbit.*\.dylib$/.test(name) || /^graphbit.*\.dll$/.test(name))
+          if (!files.length) return { ok: false, detail: `rust library dir exists but no libgraphbit shared objects (${dir})` }
+          return { ok: true, detail: `rust library present: ${files.length} shared object(s) (${files.slice(0, 3).join(", ")}${files.length > 3 ? ", …" : ""})` }
+        } catch (error) {
+          return { ok: false, detail: `probe error: ${error instanceof Error ? error.message : String(error)}` }
+        }
+      },
+      // Python binding probe: a bounded `python3 -c "import graphbit"` import.
+      // Recorded as skipped (with the build hint) when the module isn't
+      // installed — this is the documented boundary between two SDK generations
+      // and never thrown away.
+      async (rootDir) => {
+        const script = "import graphbit; graphbit.init(); print(getattr(graphbit, '__version__', 'unknown'))"
+        const result = await Exec.execBounded("python3", ["-c", script], { timeoutMs: 10_000, cwd: rootDir })
+        if (result.spawnError) return { ok: false, skipped: true, detail: `python3 unavailable: ${result.spawnError}` }
+        if (result.timedOut) return { ok: false, detail: "python3 import probe timed out" }
+        if (result.code !== 0) {
+          const message = result.stderr.trim().split("\n").pop() ?? `python3 exited ${result.code}`
+          return { ok: false, skipped: true, detail: `python binding not installed: ${message} (run \`openhack vendors --bootstrap graphbit --with-python\`)` }
+        }
+        return { ok: true, detail: `python binding imports cleanly: graphbit ${result.stdout.trim() || "unknown"}` }
+      },
+    ],
   },
   {
     name: "temporal",
@@ -204,9 +246,12 @@ export interface ComponentStatus extends Resolution {
   /** True when a prior bootstrap attempt failed (error kept in `bootstrapError`). */
   bootstrapFailed: boolean
   bootstrapError: string | null
+  /** Number of declared probes (per-component, for `format` summary). */
+  probeCount: number
 }
 
 const bootstraps = new Map<string, { failed: boolean; error: string | null }>()
+const probeResults = new Map<string, ProbeResult[]>()
 
 /** Status of every component (or one, by name) — the live `vendor/` wiring report. */
 export function status(name?: string): ComponentStatus[] {
@@ -224,8 +269,53 @@ export function status(name?: string): ComponentStatus[] {
       source: resolution.source,
       bootstrapFailed: boot?.failed ?? false,
       bootstrapError: boot?.error ?? null,
+      probeCount: component.probes?.length ?? 0,
     }
   })
+}
+
+export interface ProbeReport {
+  name: string
+  results: ProbeResult[]
+}
+
+const PROBE_TIMEOUT_MS = 15_000
+
+/**
+ * Run every probe declared for `name`, bounded, in declaration order. Results
+ * are cached in `probeResults` and returned to the caller — failures and
+ * skipped steps are both recorded (no silent swallowing).
+ */
+export async function probe(name: string, opts: { timeoutMs?: number } = {}): Promise<ProbeReport> {
+  const component = COMPONENTS.find((c) => c.name === name)
+  if (!component) return { name, results: [] }
+  const root = repoRoot()
+  if (!root) {
+    const skip: ProbeResult = { ok: false, skipped: true, detail: "no repository root (vendor/ not found)" }
+    probeResults.set(name, [skip])
+    return { name, results: [skip] }
+  }
+  const timeout = opts.timeoutMs ?? PROBE_TIMEOUT_MS
+  const probes = component.probes ?? []
+  const settled: ProbeResult[] = []
+  for (const fn of probes) {
+    try {
+      const result = await Promise.race([
+        fn(root),
+        new Promise<ProbeResult>((resolve) => setTimeout(() => resolve({ ok: false, detail: `probe timed out after ${timeout}ms` }), timeout)),
+      ])
+      settled.push(result)
+    } catch (error) {
+      settled.push({ ok: false, detail: `probe threw: ${error instanceof Error ? error.message : String(error)}` })
+    }
+  }
+  probeResults.set(name, settled)
+  return { name, results: settled }
+}
+
+/** Last probe results per component (empty array when never probed). */
+export function lastProbe(name: string): ProbeResult[] {
+  return probeResults.get(name) ?? []
 }
 
 export interface BootstrapResult {
@@ -239,8 +329,13 @@ export interface BootstrapResult {
 /**
  * Run a component's idempotent bootstrap script (bounded). Failures are
  * returned and recorded in `status()` — never thrown away.
+ *
+ * `opts.withPython` is honored only by `graphbit` (and any future component
+ * that declares a Python binding) — it runs the `maturin develop` step in
+ * addition to the Rust build, marked idempotent by a sentinel file in the
+ * component's Python source tree.
  */
-export async function bootstrap(name: string, timeoutMs = 900_000): Promise<BootstrapResult> {
+export async function bootstrap(name: string, opts: { timeoutMs?: number; withPython?: boolean } = {}): Promise<BootstrapResult> {
   const component = COMPONENTS.find((c) => c.name === name)
   if (!component)
     return { name, ok: false, code: null, output: "", error: `unknown vendored component: ${name} (known: ${COMPONENTS.map((c) => c.name).join(", ")})` }
@@ -249,28 +344,98 @@ export async function bootstrap(name: string, timeoutMs = 900_000): Promise<Boot
     return { name, ok: false, code: null, output: "", error: "no repository root (vendor/ not found) — run from inside the openhack repository" }
   const script = path.join(root, component.bootstrap)
   if (!exists(script)) return { name, ok: false, code: null, output: "", error: `bootstrap script missing: ${component.bootstrap}` }
+  const timeoutMs = opts.timeoutMs ?? 900_000
   const result = await Exec.execBounded("bash", [script], { timeoutMs, cwd: path.dirname(script) })
-  const output = `${result.stdout}${result.stderr}`
+  let output = `${result.stdout}${result.stderr}`
+  let combinedOk = true
+  let combinedMessage: string | null = null
+
+  const record = (ok: boolean, message: string | null) => {
+    bootstraps.set(name, { failed: !ok, error: message })
+    if (!ok) {
+      combinedOk = false
+      combinedMessage = message
+    }
+  }
+
   if (result.timedOut) {
-    const message = `bootstrap timed out after ${timeoutMs}ms`
-    bootstraps.set(name, { failed: true, error: message })
-    return { name, ok: false, code: null, output, error: message }
+    record(false, `bootstrap timed out after ${timeoutMs}ms`)
+    return { name, ok: false, code: null, output, error: `bootstrap timed out after ${timeoutMs}ms` }
   }
   if (result.spawnError) {
-    bootstraps.set(name, { failed: true, error: result.spawnError })
+    record(false, result.spawnError)
     return { name, ok: false, code: null, output, error: result.spawnError }
   }
-  if (result.code === 0) {
-    bootstraps.set(name, { failed: false, error: null })
-    return { name, ok: true, code: 0, output, error: null }
+  if (result.code !== 0) {
+    const message = `bootstrap exited ${result.code}`
+    record(false, message)
+    return { name, ok: false, code: result.code, output, error: message }
   }
-  const message = `bootstrap exited ${result.code}`
-  bootstraps.set(name, { failed: true, error: message })
-  return { name, ok: false, code: result.code, output, error: message }
+  record(true, null)
+
+  // Optional Python binding step (e.g. graphbit's `maturin develop`).
+  if (opts.withPython && name === "graphbit") {
+    const pyResult = await bootstrapGraphbitPython(root)
+    output = `${output}\n${pyResult.output}`.trim()
+    if (!pyResult.ok) {
+      combinedOk = false
+      combinedMessage = pyResult.error
+      bootstraps.set(name, { failed: true, error: pyResult.error })
+      return { name, ok: false, code: pyResult.code, output, error: pyResult.error }
+    }
+  }
+
+  if (!combinedOk) {
+    return { name, ok: false, code: null, output, error: combinedMessage ?? "bootstrap failed" }
+  }
+  return { name, ok: true, code: 0, output, error: null }
+}
+
+const graphbitPythonSentinel = ".graphbit-python-built"
+
+const bootstrapGraphbitPython = async (root: string): Promise<{ ok: boolean; code: number | null; output: string; error: string | null }> => {
+  const pyDir = path.join(root, "vendor", "graphbit", "python")
+  if (!exists(pyDir)) return { ok: false, code: null, output: "", error: `graphbit python source tree missing: ${pyDir}` }
+  const sentinel = path.join(pyDir, graphbitPythonSentinel)
+  if (exists(sentinel) && process.env.FORCE !== "1") {
+    return { ok: true, code: 0, output: `graphbit python binding already built (sentinel: ${graphbitPythonSentinel})`, error: null }
+  }
+  const venvPython = path.join(root, "vendor", "graphbit", ".venv", "bin", "python")
+  const sysPython = exists(venvPython) ? venvPython : "python3"
+  const result = await Exec.execBounded(sysPython, ["-m", "pip", "install", "--break-system-packages", "-e", "."], {
+    timeoutMs: 10 * 60_000,
+    cwd: pyDir,
+  })
+  const output = `${result.stdout}${result.stderr}`
+  if (result.spawnError) return { ok: false, code: null, output, error: `pip not runnable: ${result.spawnError}` }
+  if (result.timedOut) return { ok: false, code: null, output, error: "graphbit python install timed out" }
+  if (result.code !== 0) {
+    const tail = result.stderr.trim().split("\n").slice(-3).join("\n")
+    return { ok: false, code: result.code, output, error: `graphbit python install exited ${result.code}: ${tail}` }
+  }
+  try {
+    fs.writeFileSync(sentinel, new Date().toISOString())
+  } catch (error) {
+    // Sentinel is a best-effort accelerator; missing it just means the next
+    // bootstrap may re-run pip. We still record the issue (never silent).
+    return { ok: true, code: 0, output: `${output}\n(warning: failed to write sentinel: ${error instanceof Error ? error.message : String(error)})`, error: null }
+  }
+  return { ok: true, code: 0, output: `${output}\ngraphbit python binding installed (sentinel: ${graphbitPythonSentinel})`, error: null }
 }
 
 const sourceLabel = (source: ResolutionSource): string =>
   source === "env" ? "env override" : source === "vendored" ? "vendored" : source === "path" ? "PATH" : "MISSING"
+
+/** Render a single probe-report block (header + bullet list). */
+export function formatProbe(report: ProbeReport): string {
+  if (!report.results.length) return `  probe(${report.name}): no probes declared`
+  const lines = [`  probe(${report.name}):`]
+  for (const [index, result] of report.results.entries()) {
+    const tag = result.ok ? "OK  " : result.skipped ? "SKIP" : "FAIL"
+    lines.push(`    [${tag}] ${index + 1}: ${result.detail}`)
+  }
+  return lines.join("\n")
+}
 
 /** Render component statuses as a text table for the CLI. */
 export function format(statuses: ComponentStatus[]): string {

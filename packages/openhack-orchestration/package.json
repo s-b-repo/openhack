@@ -12,7 +12,12 @@
     "./frontier": "./src/frontier.ts",
     "./heuristic": "./src/heuristic.ts",
     "./controller": "./src/controller.ts",
-    "./round-engine": "./src/round-engine.ts"
+    "./round-engine": "./src/round-engine.ts",
+    "./harness-taxonomy": "./src/harness-taxonomy.ts",
+    "./harness-patch": "./src/harness-patch.ts",
+    "./harness-engineer": "./src/harness-engineer.ts",
+    "./harness-store": "./src/harness-store.ts",
+    "./harness": "./src/harness.ts"
   },
   "dependencies": {
     "@langchain/langgraph": "catalog:"

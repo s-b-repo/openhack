@@ -8,6 +8,7 @@ import { Global } from "@openhack-ai/core/global"
 import { ModelV2 } from "@openhack-ai/core/model"
 import { ProviderV2 } from "@openhack-ai/core/provider"
 import { SessionDcr } from "@openhack-ai/core/session/dcr"
+import { SessionDcrCache } from "@openhack-ai/core/session/dcr-cache"
 import { SessionMessage } from "@openhack-ai/core/session/message"
 
 const created = DateTime.makeUnsafe(0)
@@ -300,5 +301,69 @@ describe("SessionDcr.assemble (reference implementation)", () => {
       }),
     )
     expect(assembled).toBeUndefined()
+  })
+})
+
+describe("SessionDcr archival token cache (KV-cache-style reuse over immutable history)", () => {
+  const sessionID = `ses_dcr_cache_${Date.now().toString(36)}` as never
+  const liveSettings = { enabled: true, bin: process.env.DCR_BIN ?? "dcr", budget: 400, recentTokens: 4000 }
+
+  maybeIntegration("warms across turns: re-assembling the same history is served from cache", async () => {
+    const history = entries(
+      user("1", "starting work on the incident"),
+      assistant("2", "server.ip = 10.0.9.7"),
+      user("3", "acknowledged"),
+      assistant("4", "the firewall rule is allow 443"),
+      user("5", "what is the server ip?"),
+    )
+    SessionDcr.disposeAll() // clean pool + cache/telemetry
+    try {
+      // First turn: cold — every immutable span is serialized and priced once.
+      await Effect.runPromise(SessionDcr.assembleEffect({ sessionID, entries: history, settings: liveSettings }))
+      const afterFirst = SessionDcr.cacheStats()
+      expect(afterFirst.misses).toBeGreaterThan(0)
+
+      // Second turn over the same immutable history: pure cache hits, no new misses.
+      await Effect.runPromise(SessionDcr.assembleEffect({ sessionID, entries: history, settings: liveSettings }))
+      const afterSecond = SessionDcr.cacheStats()
+      expect(afterSecond.hits).toBeGreaterThan(afterFirst.hits)
+      expect(afterSecond.misses).toBe(afterFirst.misses) // nothing re-serialized
+      expect(afterSecond.hitRate).toBeGreaterThan(afterFirst.hitRate)
+    } finally {
+      rmSync(path.join(Global.Path.data, "dcr", sessionID as string), { recursive: true, force: true })
+      SessionDcr.disposeAll()
+    }
+  })
+
+  maybeIntegration("honors an explicit escalate list — pins the named raw span ahead of the plan", async () => {
+    const history = entries(
+      user("1", "starting work on the incident"),
+      assistant("2", "the exact banner was: OpenSSH_8.9p1 Ubuntu-3ubuntu0.4"),
+      user("3", "what is the server ip?"),
+    )
+    const escSession = `${sessionID}_esc` as never
+    try {
+      const assembled = await Effect.runPromise(
+        // m2 is the assistant banner span; escalating it must pin its raw bytes.
+        SessionDcr.assembleEffect({ sessionID: escSession, entries: history, settings: liveSettings, escalate: ["m2"] }),
+      )
+      expect(assembled).toBeDefined()
+      expect(assembled!.rendered).toContain("[m2]")
+      expect(assembled!.rendered).toContain("OpenSSH_8.9p1")
+    } finally {
+      rmSync(path.join(Global.Path.data, "dcr", escSession as string), { recursive: true, force: true })
+      SessionDcr.disposeSession(escSession)
+    }
+  })
+})
+
+describe("SessionDcr.cacheStats", () => {
+  test("is exposed on the bridge namespace and reports the archival cache", () => {
+    SessionDcr.disposeAll()
+    SessionDcrCache.priced("msg_probe", 1, () => "probe")
+    const stats = SessionDcr.cacheStats()
+    expect(stats.size).toBeGreaterThanOrEqual(1)
+    SessionDcr.disposeAll()
+    expect(SessionDcr.cacheStats().size).toBe(0) // disposeAll clears the cache
   })
 })

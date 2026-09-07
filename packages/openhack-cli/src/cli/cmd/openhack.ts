@@ -629,24 +629,42 @@ export const OpenHackCommand = cmd({
         })
       .command("vendors", "status of every vendored framework component (vendor/)", (y: any) => y
         .option("json", { type: "boolean", describe: "emit machine-readable JSON" })
-        .option("bootstrap", { type: "string", describe: "bootstrap one component by name (e.g. lattice) before reporting" }),
+        .option("bootstrap", { type: "string", describe: "bootstrap one component by name (e.g. lattice) before reporting" })
+        .option("with-python", { type: "boolean", describe: "with --bootstrap, also build/install the Python binding (e.g. graphbit's maturin step)" })
+        .option("probe", { type: "string", describe: "run the bounded smoke probes for one component by name (e.g. graphbit) and print the results" }),
         async (argv: any) => {
           try {
             if (argv.bootstrap) {
-              log(`bootstrapping ${argv.bootstrap} (bounded; output streams to the end)…`)
-              const result = await Vendors.bootstrap(String(argv.bootstrap))
+              const usePython = argv["withPython"] === true
+              log(`bootstrapping ${argv.bootstrap}${usePython ? " (with python binding)" : ""} (bounded; output streams to the end)…`)
+              const result = await Vendors.bootstrap(String(argv.bootstrap), usePython ? { withPython: true } : {})
               if (result.ok) ok(`bootstrap ${result.name}: ok`)
               else warn(`bootstrap ${result.name} failed: ${result.error}`)
               if (result.output.trim()) log(result.output.trim().split("\n").slice(-12).join("\n"))
             }
             const statuses = Vendors.status(argv.bootstrap ? String(argv.bootstrap) : undefined)
-            if (argv.json) { log(JSON.stringify(statuses, null, 2)); return }
+            if (argv.json) {
+              const probed: Record<string, unknown> = {}
+              for (const component of Vendors.COMPONENTS) {
+                if (argv.bootstrap && component.name !== argv.bootstrap) continue
+                if (!component.probes) continue
+                probed[component.name] = Vendors.lastProbe(component.name)
+              }
+              log(JSON.stringify({ statuses, probes: probed }, null, 2))
+              return
+            }
             log("")
             log("\x1b[1m▸ Vendored framework components:\x1b[0m")
             log(Vendors.format(statuses))
             const missing = statuses.filter((s) => !s.bin)
             if (missing.length)
               log(`\n  ${missing.length} missing — bootstrap with: bash vendor/<dir>/bootstrap.sh  ·  or: openhack vendors --bootstrap <name>`)
+            if (argv.probe) {
+              log("")
+              log("\x1b[1m▸ Smoke probes:\x1b[0m")
+              const report = await Vendors.probe(String(argv.probe))
+              log(Vendors.formatProbe(report))
+            }
           } catch (e: any) { log(`Error: ${e.message}`) }
         })
       .demandCommand(),

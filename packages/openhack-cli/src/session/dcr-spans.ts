@@ -2,6 +2,7 @@ export * as SessionDcrSpans from "./dcr-spans"
 
 import type { SessionV1 } from "@openhack-ai/core/v1/session"
 import { SessionDcr } from "@openhack-ai/core/session/dcr"
+import { SessionDcrCache } from "@openhack-ai/core/session/dcr-cache"
 import type { SessionID } from "./schema"
 import { ConfigStore } from "../../../openhack/src/config-store"
 
@@ -74,14 +75,57 @@ const serializeV1 = (message: SessionV1.WithParts): string => {
   return message.parts.flatMap((part) => partLines(part, role)).join("\n")
 }
 
-/** Project V1 history into the span shape the runtime bridge consumes. */
+/**
+ * O(1)-per-part content fingerprint of a V1 message, mirroring the fields
+ * `partLines` reads. Stable across turns for an immutable committed message
+ * (archival token-cache hit); it changes when a part is edited in place.
+ */
+const fingerprintV1 = (message: SessionV1.WithParts): number => {
+  const mix = (hash: number, value: number) => Math.imul(hash ^ value, 0x01000193) >>> 0
+  let hash = mix(0x811c9dc5, message.info.role === "assistant" ? 1 : 0)
+  hash = mix(hash, message.parts.length)
+  for (const part of message.parts) {
+    switch (part.type) {
+      case "text":
+      case "reasoning":
+        hash = mix(hash, part.text?.length ?? 0)
+        break
+      case "file":
+        hash = mix(hash, (part.filename ?? part.url ?? "").length)
+        break
+      case "tool":
+        hash = mix(hash, part.state.status.length)
+        if (part.state.status === "completed") hash = mix(hash, part.state.output.length)
+        else if (part.state.status === "error") hash = mix(hash, part.state.error.length)
+        break
+      case "subtask":
+        hash = mix(hash, part.prompt.length)
+        break
+      case "agent":
+        hash = mix(hash, part.name.length)
+        break
+      case "patch":
+        hash = mix(hash, part.files.length)
+        break
+      default:
+        hash = mix(hash, part.type.length)
+    }
+  }
+  return hash
+}
+
+/**
+ * Project V1 history into the span shape the runtime bridge consumes. Each
+ * message's serialization is priced once through the shared archival token
+ * cache and reused across turns — the same cache the V2 runner warms.
+ */
 export const toSpans = (messages: readonly SessionV1.WithParts[]): SessionDcr.Span<SessionV1.WithParts>[] =>
   messages.map((message) => ({
     item: message,
     id: message.info.id,
     boundary: message.info.role !== "assistant",
     assistant: message.info.role === "assistant",
-    text: serializeV1(message),
+    text: SessionDcrCache.priced(message.info.id, fingerprintV1(message), () => serializeV1(message)).text,
   }))
 
 /** Merge the engagement-config `dcr` block over the env-driven defaults. */

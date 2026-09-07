@@ -20,7 +20,7 @@ An AI-powered security assessment assistant for authorized penetration testing p
 | `/undo` | Undo last changes |
 | `/share` | Share session link |
 | `/codeaudit <path>` | Auto-audit source code with the Lattice structural engine (hunt + secaudit + diagnose + triage) |
-| `openhack vendors` | Status/resolution report for every vendored framework component (`--json`, `--bootstrap <name>`) |
+| `openhack vendors` | Status/resolution report for every vendored framework component (`--json`, `--bootstrap <name> [--with-python]`, `--probe <name>`) |
 
 ## Agents
 
@@ -34,6 +34,11 @@ An AI-powered security assessment assistant for authorized penetration testing p
 | **post-exploit** | subagent | Post-exploitation operations |
 | **c2** | subagent | C2 operations (arcticfox) |
 | **report** | subagent | Pentest report generation (SysReptor) |
+| **osint** | subagent | Passive open-source intelligence (deep research via `mcp.osint-research`, domain/subdomain enumeration, leak chatter); doctrine at `.openhack/agents/osint.md` |
+| **defense** | subagent | Blue-team challenger — questions findings, surfaces risks + false positives |
+| **defense-review** | subagent | Adversarial defender — scores findings from the blue-team perspective for the council |
+| **council** | subagent | One lens of the `/council` macro's multi-instance verdict panel |
+| **triage** | subagent | Code-quality + combinatorial coverage-gap enumerator (per the `/triage` macro) |
 | **general** | subagent | Multi-step task execution |
 | **explore** | subagent | Codebase exploration |
 
@@ -50,7 +55,7 @@ registry (`packages/openhack/src/vendors.ts`) with a live status surface:
 | `gpt-researcher` | wired | `mcp.osint-research` MCP (passive deep research; granted to `osint`/`recon`) |
 | `deepagents` | wired | manager planning backend — `managers.backend: "deepagents"` |
 | `langgraph` | wired | graph round-engine — `graph.round_engine: "langgraph" \| "auto"` |
-| `graphbit` | probed | native Rust runtime library — status + `--bootstrap` via `openhack vendors` |
+| `graphbit` | probed | native Rust runtime library + Python bindings (PyO3) — `Vendors.probe("graphbit")` runs the artifact + Python-import smoke checks (`--with-python` on bootstrap installs the binding) |
 | `temporal` | wired | durable round mirror — `temporal.enabled` + docker-compose service |
 
 Every resolution follows env override → vendored artifact → PATH. A missing

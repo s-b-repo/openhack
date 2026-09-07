@@ -10,6 +10,63 @@ import { Token } from "../util/token"
 import { SessionMessage } from "./message"
 import { SessionSchema } from "./schema"
 import { serialize as serializeMessage } from "./compaction"
+import { SessionDcrCache } from "./dcr-cache"
+
+/** Cache-hit telemetry for the archival-memory token cache (see `./dcr-cache`). */
+export const cacheStats = SessionDcrCache.stats
+
+/**
+ * O(1)-per-part content fingerprint of a core message, mirroring the fields
+ * `serializeMessage` reads. An immutable committed span keeps its fingerprint
+ * across turns (cache hit); an edited span reusing its id changes it (miss).
+ */
+const fingerprintMessage = (message: SessionMessage.Message): number => {
+  const mix = (hash: number, value: number) => Math.imul(hash ^ value, 0x01000193) >>> 0
+  let hash = 0x811c9dc5
+  switch (message.type) {
+    case "user":
+      hash = mix(hash, 1)
+      hash = mix(hash, message.text.length)
+      hash = mix(hash, message.files?.length ?? 0)
+      break
+    case "synthetic":
+      hash = mix(hash, 2)
+      hash = mix(hash, message.text.length)
+      break
+    case "system":
+      hash = mix(hash, 3)
+      hash = mix(hash, message.text.length)
+      break
+    case "shell":
+      hash = mix(hash, 4)
+      hash = mix(hash, message.command.length)
+      hash = mix(hash, message.output.length)
+      break
+    case "assistant":
+      hash = mix(hash, 5)
+      hash = mix(hash, message.content.length)
+      for (const part of message.content) {
+        if (part.type === "text") hash = mix(hash, part.text.length)
+        else if (part.type === "reasoning") hash = mix(hash, part.text.length)
+        else {
+          hash = mix(hash, part.state.status.length)
+          if (part.state.status === "completed")
+            for (const item of part.state.content) hash = mix(hash, item.type === "text" ? item.text.length : 0)
+          else if (part.state.status === "error") hash = mix(hash, part.state.error.message.length)
+        }
+      }
+      break
+  }
+  return hash
+}
+
+/**
+ * Serialize-and-price a core message through the archival token cache. Returns
+ * the full (unstripped) serialization and its token cost, computed once per
+ * immutable span and reused across turns and both session runtimes.
+ */
+const serialized = (message: SessionMessage.Message) =>
+  SessionDcrCache.priced(message.id, fingerprintMessage(message), () => serializeMessage(message))
 
 /**
  * Dynamic Context Runtime bridge over the reference implementation
@@ -134,7 +191,7 @@ export const pendingEscalations = (entries: readonly Entry[]): string[] => {
 
 export const recentTail = (entries: readonly Entry[], tokens: number) => {
   const start = recentWindowStart(
-    entries.map((entry) => Token.estimate(serializeMessage(entry.message))),
+    entries.map((entry) => serialized(entry.message).tokens),
     entries.map((entry) => boundaryTypes.has(entry.message.type)),
     tokens,
   )
@@ -259,7 +316,7 @@ class Engine {
    */
   async write(entry: Entry): Promise<void> {
     await this.ensure()
-    const text = serializeMessage(entry.message).replace(/^\[[^\]\n]+\]:\s?/gm, "")
+    const text = serialized(entry.message).text.replace(/^\[[^\]\n]+\]:\s?/gm, "")
     await writeFile(path.join(this.turns, `m${entry.seq}.txt`), text)
   }
 
@@ -337,6 +394,10 @@ const acquire = (sessionID: SessionSchema.ID, settingsValue: Settings) => {
       engines.get(oldest)?.dispose()
       engines.delete(oldest)
       ingestedThrough.delete(oldest)
+      // Evict the span-path watermark too — otherwise it leaks for every
+      // session ever displaced from the pool, and a returning session would
+      // skip re-writing spans it no longer has an engine for.
+      ingestedSpanIDs.delete(oldest)
     }
   }
   return created
@@ -392,7 +453,7 @@ const serviceEscalations = (
     if (!match) continue
     const entry = entries.find((candidate) => candidate.seq === Number(match[1]))
     if (!entry) continue
-    const text = `[${id}] ${serializeMessage(entry.message)}`
+    const text = `[${id}] ${serialized(entry.message).text}`
     const cost = Token.estimate(text)
     if (spent + cost > budget) break
     spent += cost
@@ -416,7 +477,7 @@ export const assemble = async (input: {
     if (!query.trim()) return undefined
     const planned = await engine.plan(query)
 
-    const escalation = pendingEscalations(input.entries)
+    const escalation = input.escalate ?? pendingEscalations(input.entries)
     const pinned = escalation.length > 0 ? serviceEscalations(input.entries, escalation, input.settings.budget) : { pinned: "", spent: 0 }
     const rendered = [pinned.pinned, planned].filter((section) => section.length > 0).join("\n")
     if (!rendered.trim()) return undefined
@@ -472,6 +533,9 @@ export const disposeAll = () => {
   ingestedSpanIDs.clear()
   degradations.clear()
   degradationCounts.clear()
+  // The archival token cache is process-global reuse across sessions; a full
+  // teardown clears it and its hit-rate telemetry with everything else.
+  SessionDcrCache.clear()
 }
 
 export const disposeSession = (sessionID: SessionSchema.ID) => forget(sessionID)
