@@ -59,7 +59,9 @@ import { SessionDcr } from "@openhack-ai/core/session/dcr"
 import { SessionDcrSpans } from "./dcr-spans"
 import { LLMEvent } from "@openhack-ai/llm"
 
-// @ts-ignore
+// AI_SDK_LOG_WARNINGS is typed as a global by `src/types/ai-sdk-globals.d.ts`;
+// toggle BEFORE any `@ai-sdk/*` import to silence the SDK's one-shot
+// deprecation banner on stdout.
 globalThis.AI_SDK_LOG_WARNINGS = false
 
 const decodeMessageInfo = Schema.decodeUnknownExit(SessionV1.Info)

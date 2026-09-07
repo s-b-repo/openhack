@@ -115,9 +115,38 @@ export const make = (
         executeUnprepared(sql, params, transformRows) {
           return this.execute(sql, params, transformRows)
         },
-        executeStream() {
-          return Stream.die("executeStream not implemented")
-        },
+      executeStream(sql, params, transformRows) {
+        // node:sqlite Statement.iterate() exposes a sync iterator over the
+        // result rows; we wrap it in an Effect Stream so consumers can pull
+        // one row at a time without buffering. Mirrors the core sqlite.node
+        // implementation (single prepare, no StatementSync.finalize —
+        // node:sqlite auto-finalises on the next prepare for the same
+        // connection).
+        return Stream.unwrap(
+          Effect.sync(() => {
+            const statement = db.prepare(sql)
+            return Stream.fromAsyncIterable(
+              (async function* () {
+                try {
+                  const rows = statement.iterate(...(params as SQLInputValue[])) as Iterable<Record<string, unknown>>
+                  for (const row of rows) {
+                    const next: ReadonlyArray<Record<string, unknown>> = transformRows
+                      ? transformRows([row])
+                      : [row]
+                    yield* next
+                  }
+                } finally {
+                  // node:sqlite StatementSync has no explicit finalize.
+                }
+              })(),
+              (cause): SqlError =>
+                new SqlError({
+                  reason: classifySqliteError(cause, { message: "Failed to stream statement", operation: "execute" }),
+                }),
+            )
+          }),
+        )
+      },
         loadExtension: (path) =>
           Effect.try({
             try: () => db.loadExtension(path),

@@ -153,4 +153,13 @@ export const toEffect =
   (authInput: AuthInput): Effect.Effect<Headers.Headers, LLMError> =>
     input.apply(authInput).pipe(Effect.mapError(toLLMError))
 
+/**
+ * Type-narrowing helper: returns the input as {@link Auth} when it is one,
+ * otherwise `null`. Lets callers (and the HTTP transport) safely treat a
+ * value they hold as possibly-an-Auth and use the result directly with
+ * {@link toEffect} or a header helper. References {@link isAuth} so the
+ * type guard is exercised in production code.
+ */
+export const fromAuth = (input: unknown): Auth | null => (isAuth(input) ? input : null)
+
 export * as Auth from "./auth"

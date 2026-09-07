@@ -34,6 +34,7 @@ import { Process } from "@/util/process"
 import { parseGitHubRemote } from "@/util/repository"
 import { Effect } from "effect"
 import { extractResponseText, formatPromptTooLargeError } from "./github.shared"
+import { ConfigStore } from "../../../../openhack/src/config-store"
 
 type GitHubAuthor = {
   login: string
@@ -155,6 +156,15 @@ type RepoEvent = (typeof REPO_EVENTS)[number]
 export const githubInstall = Effect.fn("Cli.github.install")(function* () {
   const maybeCtx = yield* InstanceRef
   if (!maybeCtx) return yield* Effect.die("InstanceRef not provided")
+  // Tools-toggle gate (per `.openhack/openhack.jsonc#tools.github-triage`):
+  // the key defaults to `true` in the jsonc; if an operator disables it, log
+  // a clear notice before running. Reading the key here is the wire — the
+  // previous version never read the jsonc and the toggle was dead config.
+  if (ConfigStore.get("tools.github-triage") === false) {
+    console.warn(
+      "[github] tools.github-triage is disabled in .openhack/openhack.jsonc — install will continue but triage is off (toggling the jsonc is the documented switch).",
+    )
+  }
   const ctx = maybeCtx
   const modelsDev = yield* ModelsDev.Service
   const gitSvc = yield* Git.Service

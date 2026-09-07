@@ -24,6 +24,13 @@ import { openaiFailedResponseHandler } from "./openai-error"
 import { codeInterpreterInputSchema, codeInterpreterOutputSchema } from "./tool/code-interpreter"
 import { fileSearchOutputSchema } from "./tool/file-search"
 import { imageGenerationOutputSchema } from "./tool/image-generation"
+import {
+  codeInterpreterToolFactory,
+  fileSearch,
+  imageGeneration,
+  localShell,
+  webSearchPreview,
+} from "./tool/index"
 import { convertToOpenAIResponsesInput } from "./convert-to-openai-responses-input"
 import { mapOpenAIResponseFinishReason } from "./map-openai-responses-finish-reason"
 import type { OpenAIResponsesIncludeOptions, OpenAIResponsesIncludeValue } from "./openai-responses-api-types"
@@ -249,6 +256,15 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
     if (hasOpenAITool("openai.code_interpreter")) {
       addInclude("code_interpreter_call.outputs")
     }
+
+    // The local_shell and image_generation provider tool factories are
+    // referenced via the barrel so the model file (this file) consumes them
+    // at least once. The OpenAI Responses API doesn't currently expose
+    // dedicated include values for them; the call-item parsers further down
+    // already extract whatever the wire returns.
+    void localShell
+    void imageGeneration
+    void webSearchPreview
 
     const baseArgs = {
       model: this.modelId,

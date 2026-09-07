@@ -27,6 +27,19 @@ export type ToolChoiceMode = ToolChoice.Mode
 
 export type ToolResultInput = Parameters<typeof ToolResultPart.make>[0]
 
+/** Read the resolved tool-choice mode from a built {@link LLMRequest}.
+ * Returns `"auto" | "none" | "required"` for a wildcard choice, or `"tool"`
+ * when a specific named tool has been forced. Useful for callers (logging,
+ * tool dispatch, test assertions) that don't want to pattern-match on
+ * {@link ToolChoice} internals — the return type narrows to the public
+ * {@link ToolChoiceMode} alias plus `"tool"` so the consumer stays decoupled
+ * from the concrete `ToolChoice` class. */
+export const toolChoiceMode = (request: LLMRequest): ToolChoiceMode | "tool" => {
+  const choice = request.toolChoice
+  if (!choice) return "auto"
+  return choice.type
+}
+
 /** Input accepted by `LLM.request`, normalized into the canonical `LLMRequest` class. */
 export type RequestInput = Omit<
   ConstructorParameters<typeof LLMRequest>[0],

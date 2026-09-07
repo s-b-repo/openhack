@@ -98,8 +98,36 @@ const make = (options: Config) =>
       executeUnprepared(query, params, transformRows) {
         return this.execute(query, params, transformRows)
       },
-      executeStream() {
-        return Stream.die("executeStream not implemented")
+      executeStream(query, params, transformRows) {
+        // Real row-by-row streaming via bun:sqlite's `statement.iterate(...)` —
+        // the sync iterator is wrapped into an Effect Stream so a large SELECT
+        // (millions of rows) is not buffered into a single Array before reaching
+        // the consumer. The statement is reset for every call (Effect scopes
+        // ensure the iterator closes if the consumer pulls late or aborts).
+        return Stream.unwrap(
+          Effect.gen(function* () {
+            const statement = yield* Effect.sync(() => native.query(query))
+            return Stream.fromAsyncIterable(
+              (async function* () {
+                try {
+                  const rows = statement.iterate(...(params as never)) as Iterable<Record<string, unknown>>
+                  for (const row of rows) {
+                    const next: ReadonlyArray<Record<string, unknown>> = transformRows
+                      ? transformRows([row])
+                      : [row]
+                    yield* next
+                  }
+                } finally {
+                  try { statement.finalize?.() } catch { /* statement lifetime managed by bun:sqlite */ }
+                }
+              })(),
+              (cause): SqlError =>
+                new SqlError({
+                  reason: classifySqliteError(cause, { message: "Failed to stream statement", operation: "execute" }),
+                }),
+            )
+          }),
+        )
       },
       export: Effect.try({
         try: () => native.serialize(),

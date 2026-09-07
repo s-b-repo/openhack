@@ -72,6 +72,35 @@ export namespace ConfigStore {
   }
 
   /**
+   * Read a boolean config key with a default. Returns the default when the key
+   * is missing or holds a non-boolean value. Use this for engine toggle reads
+   * (`graph.controller_enabled`, `round_budget.adaptive`, …) instead of the
+   * `(ConfigStore.get(k) as unknown as boolean)` cast pattern.
+   */
+  export function getBoolean(key: string, defaultValue: boolean, cfg = load()): boolean {
+    const value = get(key, cfg)
+    return typeof value === "boolean" ? value : defaultValue
+  }
+
+  /**
+   * Read a string config key with a default. Returns the default when the key
+   * is missing or holds a non-string value.
+   */
+  export function getString(key: string, defaultValue: string, cfg = load()): string {
+    const value = get(key, cfg)
+    return typeof value === "string" ? value : defaultValue
+  }
+
+  /**
+   * Read a number config key with a default. Returns the default when the key
+   * is missing or holds a non-number value.
+   */
+  export function getNumber(key: string, defaultValue: number, cfg = load()): number {
+    const value = get(key, cfg)
+    return typeof value === "number" && Number.isFinite(value) ? value : defaultValue
+  }
+
+  /**
    * Coerce a shell-supplied string value: JSON where it parses (numbers, booleans,
    * null, arrays, objects), otherwise the raw string. So `set x.y 3` stores 3 (number)
    * and `set x.z true` stores true (boolean).

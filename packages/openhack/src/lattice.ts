@@ -443,3 +443,15 @@ export function __resetForTests() {
   state.cooldownSkips = 0
   state.engineMissingNoted = false
 }
+
+/**
+ * L1: reset the run-scoped state (the engine-missing note, the
+ * cooldown-skip counter) so a long-running orchestrator process re-prints
+ * the engine-missing note per run, not once per process. Operators who
+ * bootstrap Lattice AFTER the first round will see the fix on the next
+ * round instead of running silently for the rest of the process.
+ */
+export function resetRunState(): void {
+  state.engineMissingNoted = false
+  state.cooldownSkips = 0
+}

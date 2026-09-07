@@ -5,7 +5,7 @@ import { render as renderEndpoint } from "../endpoint"
 import { Framing, type Framing as FramingDef } from "../framing"
 import type { Transport, TransportPrepareInput } from "./index"
 import * as ProviderShared from "../../protocols/shared"
-import { mergeJsonRecords, type LLMRequest } from "../../schema"
+import { LLMError, mergeJsonRecords, type LLMRequest } from "../../schema"
 
 export type JsonRequestInput<Body> = TransportPrepareInput<Body>
 
@@ -85,7 +85,7 @@ const bodyWithOverlay = <Body>(body: Body, request: LLMRequest, encodeBody: (bod
     return yield* ProviderShared.invalidRequest("http.body can only overlay JSON object request bodies")
   })
 
-export const jsonRequestParts = <Body>(input: JsonRequestInput<Body>) =>
+export const jsonRequestParts = <Body>(input: JsonRequestInput<Body>): Effect.Effect<JsonRequestParts<Body>, LLMError> =>
   Effect.gen(function* () {
     const url = applyQuery(
       renderEndpoint(input.endpoint, { request: input.request, body: input.body }).toString(),
