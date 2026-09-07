@@ -127,6 +127,21 @@ export function makeSubprocessLlmFn(opts: { agent?: string; model?: string; cwd?
       }
       args.push(prompt)
 
+      // Three timeouts, all bounded, all never silent:
+      //   - totalMs  : the existing wall-clock cap (strongest bound; default
+      //                 30 min via the runCommandMacro caller)
+      //   - headerMs : max time to first STDOUT data (upstream opencode #46903
+      //                 default 5 min; the child must at least print the JSON
+      //                 header line within the cap, otherwise the connection is
+      //                 effectively hung)
+      //   - chunkMs  : max gap between successive STDOUT chunks (upstream #46890
+      //                 default 5 min; resets on every data event so a slow but
+      //                 actively streaming response isn't killed)
+      // All three are env-overridable for operators running long scans.
+      const totalMs = opts.timeoutMs ?? 30 * 60_000
+      const headerMs = opts.timeoutMs ?? Number(process.env.OPENHACK_RUN_HEADER_TIMEOUT_MS ?? 5 * 60_000)
+      const chunkMs = opts.timeoutMs ?? Number(process.env.OPENHACK_RUN_CHUNK_TIMEOUT_MS ?? 5 * 60_000)
+
       const child = spawn(base[0], args, { cwd: opts.cwd ?? process.cwd(), env: process.env })
       let buf = ""
       let stderr = ""
@@ -134,7 +149,28 @@ export function makeSubprocessLlmFn(opts: { agent?: string; model?: string; cwd?
       let tokensIn = 0
       let tokensOut = 0
       let cost = 0
-      const timer = opts.timeoutMs ? setTimeout(() => { try { child.kill("SIGKILL") } catch { /* already gone */ } }, opts.timeoutMs) : undefined
+      let firstChunk = false
+      let killReason: "total" | "header" | "chunk" | null = null
+
+      const kill = (reason: "total" | "header" | "chunk") => {
+        if (killReason) return // already killed
+        killReason = reason
+        try { child.kill("SIGKILL") } catch { /* already gone */ }
+      }
+
+      const totalTimer = totalMs > 0
+        ? setTimeout(() => kill("total"), totalMs)
+        : undefined
+      let headerTimer: ReturnType<typeof setTimeout> | undefined = headerMs > 0
+        ? setTimeout(() => kill("header"), headerMs)
+        : undefined
+      let chunkTimer: ReturnType<typeof setTimeout> | undefined
+
+      const armChunkTimer = () => {
+        if (chunkMs <= 0) return
+        if (chunkTimer) clearTimeout(chunkTimer)
+        chunkTimer = setTimeout(() => kill("chunk"), chunkMs)
+      }
 
       function consume(line: string) {
         const t = line.trim()
@@ -155,6 +191,11 @@ export function makeSubprocessLlmFn(opts: { agent?: string; model?: string; cwd?
       }
 
       child.stdout.on("data", (d) => {
+        if (!firstChunk) {
+          firstChunk = true
+          if (headerTimer) { clearTimeout(headerTimer); headerTimer = undefined }
+        }
+        armChunkTimer()
         buf += d.toString()
         let idx: number
         while ((idx = buf.indexOf("\n")) >= 0) {
@@ -164,11 +205,16 @@ export function makeSubprocessLlmFn(opts: { agent?: string; model?: string; cwd?
       })
       child.stderr.on("data", (d) => { stderr += d.toString() })
       child.on("error", (e) => {
-        if (timer) clearTimeout(timer)
-        resolve({ output: `[automode: failed to spawn run — ${e.message}. Set OPENHACK_RUN_CMD to override.]`, tokensIn: 0, tokensOut: 0, cost: 0, ok: false, error: `spawn failed: ${e.message}`, latencyMs: Date.now() - startedAt })
+        if (totalTimer) clearTimeout(totalTimer)
+        if (headerTimer) clearTimeout(headerTimer)
+        if (chunkTimer) clearTimeout(chunkTimer)
+        const reason = killReason ? `killed (${killReason} timeout)` : `spawn failed: ${e.message}`
+        resolve({ output: `[automode: ${reason} — ${e.message}. Set OPENHACK_RUN_CMD to override.]`, tokensIn: 0, tokensOut: 0, cost: 0, ok: false, error: reason, latencyMs: Date.now() - startedAt })
       })
       child.on("close", (code) => {
-        if (timer) clearTimeout(timer)
+        if (totalTimer) clearTimeout(totalTimer)
+        if (headerTimer) clearTimeout(headerTimer)
+        if (chunkTimer) clearTimeout(chunkTimer)
         if (buf.trim()) consume(buf)
         const output = texts.join("\n").trim()
         const latencyMs = Date.now() - startedAt
@@ -176,6 +222,20 @@ export function makeSubprocessLlmFn(opts: { agent?: string; model?: string; cwd?
         // assistant text. A non-zero/null exit (crash, ROE/spawn abort, or the
         // timeout SIGKILL) or an empty transcript is a FAILURE — otherwise the
         // loop records dead rounds as "successful" (the golecloud.co.za bug).
+        // The kill reason (when set) takes precedence over the exit code so the
+        // loop can attribute the failure to the right upstream port.
+        if (killReason) {
+          resolve({
+            output: `[run killed (${killReason} timeout)] ${stderr.trim().slice(0, 800)}`,
+            tokensIn,
+            tokensOut,
+            cost,
+            ok: false,
+            error: `run killed (${killReason} timeout — headerMs=${headerMs} chunkMs=${chunkMs} totalMs=${totalMs})`,
+            latencyMs,
+          })
+          return
+        }
         if (code !== 0 && !output) {
           resolve({ output: `[run exited ${code}] ${stderr.trim().slice(0, 800)}`, tokensIn, tokensOut, cost, ok: false, error: `run exited ${code}`, latencyMs })
           return
@@ -344,17 +404,25 @@ function physicsConfig(): {
 }
 
 /**
- * Adaptive-harness config (§ @openhack/orchestration `AdaptiveHarness`). Off by
- * default — like managers / o5 / graph, an absent or `false` block reproduces the
- * prior loop behavior exactly. When on, the harness watches the round trajectory
- * for bad agent-loop / coding patterns, injects the installed patches' guidance,
- * honors a soft instance cap, logs recovery advisories, and at end-of-run
- * synthesizes candidate patches (persisted disabled until reruns reward them).
+ * Adaptive-harness config (§ @openhack/orchestration `AdaptiveHarness`). First-
+ * class pipeline, on by default — `AdaptiveHarness.DEFAULT_CONFIG.enabled` is
+ * `true` and `runOrchestrationLoop` constructs a `Session` whenever this block
+ * is absent. Set `harness.enabled = false` in `.openhack/openhack.jsonc` to
+ * reproduce the pre-harness loop exactly. When on, the harness watches the
+ * round trajectory for bad agent-loop / coding patterns, honors every
+ * installed effect (`cap_instances`, `demote_score`, `block_dispatch`,
+ * `rewrite_objective`, `inject_guidance`) via `honorGates` (defaults `true`),
+ * injects the installed patches' guidance into the round's prompts, and at
+ * end-of-run synthesizes candidate patches (persisted disabled until reruns
+ * reward them). At loop startup, when no patches are installed yet, the loop
+ * installs the r1 cold-start dull prior (`HarnessEngineer.dullR1PriorPatch`)
+ * via `HarnessStore.upsertPatch` so the learned pipeline always has a known-
+ * bad baseline to measure ΔB against.
  */
 function harnessConfig(): AdaptiveHarness.Config {
   const d = AdaptiveHarness.DEFAULT_CONFIG
   return {
-    enabled: Boolean(ConfigStore.get("harness.enabled") ?? false),
+    enabled: Boolean(ConfigStore.get("harness.enabled") ?? d.enabled),
     minConfidence: Number(ConfigStore.get("harness.min_confidence") ?? d.minConfidence) || d.minConfidence,
     honorGates: ConfigStore.get("harness.honor_gates") !== false,
     injectGuidance: ConfigStore.get("harness.inject_guidance") !== false,

@@ -283,6 +283,39 @@ it.instance(
   },
 )
 
+// Upstream opencode/opencode #36624 widened the openai-compatible reasoning
+// derivation to every reasoning-capable model (not just deepseek). Locked
+// here as a separate test fixture so the widening doesn't regress the
+// narrow rule.
+it.instance(
+  "every reasoning-capable openai-compatible model defaults to interleaved: reasoning_content",
+  Effect.gen(function* () {
+    const providers = yield* list
+    const provider = providers[ProviderV2.ID.make("reasoning-provider")]
+    expect(provider.models["reasoning-model"].capabilities.interleaved).toEqual({ field: "reasoning_content" })
+    expect(provider.models["plain-model"].capabilities.interleaved).toBe(false)
+    // Explicit override is preserved.
+    expect(provider.models["explicit-model"].capabilities.interleaved).toEqual({ field: "reasoning_details" })
+  }),
+  {
+    config: {
+      provider: {
+        "reasoning-provider": {
+          name: "Reasoning Provider",
+          npm: "@ai-sdk/openai-compatible",
+          api: "https://api.reasoning.com/v1",
+          models: {
+            "reasoning-model": { name: "Reasoning Model", reasoning: true },
+            "plain-model": { name: "Plain Model" },
+            "explicit-model": { name: "Explicit Model", reasoning: true, interleaved: { field: "reasoning_details" } },
+          },
+          options: { apiKey: "reasoning-key" },
+        },
+      },
+    },
+  },
+)
+
 it.instance(
   "env variable takes precedence, config merges options",
   Effect.gen(function* () {

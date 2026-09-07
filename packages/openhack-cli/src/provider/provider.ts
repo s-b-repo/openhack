@@ -974,6 +974,30 @@ const ProviderInterleaved = Schema.Union([
   }),
 ])
 
+/**
+ * Derive the default `interleaved` value for an openai-compatible model when
+ * the user has not configured one explicitly. Two triggers, both upstream
+ * documented:
+ *   1. any reasoning-capable model (upstream opencode/opencode #36624) — the
+ *      OpenAI-Compatible provider family carries reasoning in
+ *      `reasoning_content` for every reasoning-capable API
+ *   2. the legacy `apiID.includes("deepseek")` fallback — preserved for users
+ *      with a bare `{ name: "DeepSeek R1" }` config (no explicit reasoning
+ *      field), since the historical narrow rule predates the broader one
+ */
+const defaultInterleaved = (
+  apiNpm: string,
+  apiID: string,
+  modelReasoning: boolean | undefined,
+  existingReasoning: boolean | undefined,
+): Schema.Schema.Type<typeof ProviderInterleaved> => {
+  if (apiNpm !== "@ai-sdk/openai-compatible") return false
+  const reasoning = modelReasoning ?? existingReasoning ?? false
+  if (reasoning) return { field: "reasoning_content" as const }
+  if (apiID.includes("deepseek")) return { field: "reasoning_content" as const }
+  return false
+}
+
 const ProviderCapabilities = Schema.Struct({
   temperature: Schema.Boolean,
   reasoning: Schema.Boolean,
@@ -1456,9 +1480,15 @@ const layer = Layer.effect(
                 interleaved:
                   model.interleaved ??
                   existingModel?.capabilities.interleaved ??
-                  (!existingModel && apiNpm === "@ai-sdk/openai-compatible" && apiID.includes("deepseek")
-                    ? { field: "reasoning_content" }
-                    : false),
+                  // Derive interleaved reasoning for any reasoning-capable
+                  // openai-compatible model (upstream opencode #36624). The
+                  // historical narrow rule targeted only deepseek, but the
+                  // underlying contract — OpenAI-Compatible providers carrying
+                  // reasoning in the `reasoning_content` field — is the same
+                  // for every reasoning-capable API in that family. We still
+                  // honour an explicit user override and a pre-existing
+                  // configured value above this fallback.
+                  defaultInterleaved(apiNpm, apiID, model.reasoning, existingModel?.capabilities.reasoning),
               },
               cost: {
                 input: model?.cost?.input ?? existingModel?.cost?.input ?? 0,

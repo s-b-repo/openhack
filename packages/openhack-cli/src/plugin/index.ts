@@ -24,6 +24,20 @@ import { OpenHackPlugin } from "../../../openhack/src/plugin"
 import { Effect, Layer, Context } from "effect"
 import { EffectBridge } from "@/effect/bridge"
 import { InstanceState } from "@/effect/instance-state"
+
+/**
+ * SDK-generation boundary: plugins published against the legacy
+ * `@opencode-ai/plugin` type universe are structurally compatible with
+ * `@openhack-ai/plugin` (same field names, same `create*Client` shape) but
+ * are nominally distinct in TypeScript. The single-cast landing point keeps
+ * the SDK-generation gap auditable in one place — upstream opencode/opencode
+ * #39373 re-imports the legacy SDK for the same reason; we re-assert the
+ * boundary at the registration site because the npm package belongs to a
+ * different ecosystem.
+ */
+function compatSdk(plugin: unknown): PluginInstance {
+  return plugin as unknown as PluginInstance
+}
 import { errorMessage } from "@/util/error"
 import { PluginLoader } from "./loader"
 import { parsePluginSpecifier, readPluginId, readV1Plugin, resolvePluginId } from "./shared"
@@ -72,11 +86,16 @@ function internalPlugins(flags: RuntimeFlags.Info): PluginInstance[] {
       }),
     CopilotAuthPlugin,
     // opencode-gitlab-auth / opencode-poe-auth are published against the legacy
-    // @opencode-ai/plugin type universe. At runtime the hook shapes are the ones
-    // @openhack-ai/plugin declares; these assertions are the documented boundary
-    // between the two SDK generations (drop when the packages publish openhack-typed).
-    GitlabAuthPlugin as unknown as PluginInstance,
-    PoeAuthPlugin as unknown as PluginInstance,
+    // @opencode-ai/plugin type universe (an older snapshot of @openhack-ai/plugin
+    // pre-rename). At runtime the hook shapes are the ones @openhack-ai/plugin
+    // declares, so we bridge the two SDK generations through `compatSdk` —
+    // an `as unknown as PluginInstance` boundary assertion. The single
+    // landing point makes the SDK-generation gap auditable in one place
+    // (upstream opencode/opencode #39373 re-imports the legacy SDK for the
+    // same reason; we re-assert the boundary because the npm package
+    // belongs to a different ecosystem).
+    compatSdk(GitlabAuthPlugin),
+    compatSdk(PoeAuthPlugin),
     CloudflareWorkersAuthPlugin,
     CloudflareAIGatewayAuthPlugin,
     AzureAuthPlugin,
