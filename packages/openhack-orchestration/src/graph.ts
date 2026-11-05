@@ -38,13 +38,14 @@ export namespace AttackGraph {
   // ---------------- Type-safe node accessors ---------------------------------
 
   export function isAsset(n: NodeUnion): n is AssetNode {
-    return typeof (n as any).kind === "string" && !("findingHash" in n) && !("objective" in n)
+    return typeof (n as { kind?: unknown }).kind === "string" && !("findingHash" in n) && !("objective" in n)
   }
   export function isFinding(n: NodeUnion): n is FindingNode {
-    return typeof (n as any).findingHash === "string"
+    return typeof (n as { findingHash?: unknown }).findingHash === "string"
   }
   export function isAction(n: NodeUnion): n is ActionNode {
-    return typeof (n as any).objective === "string" && typeof (n as any).agent === "string"
+    const r = n as { objective?: unknown; agent?: unknown }
+    return typeof r.objective === "string" && typeof r.agent === "string"
   }
 
   // ---------------- Id helpers -----------------------------------------------

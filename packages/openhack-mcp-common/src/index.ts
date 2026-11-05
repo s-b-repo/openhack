@@ -59,8 +59,16 @@ export function resolveEngagementDir(): string {
 let _installedCwd = false
 export function ensureCwd(engagementDir: string = resolveEngagementDir()): void {
   if (_installedCwd) return
-  try { fs.mkdirSync(engagementDir, { recursive: true }) } catch {}
-  try { process.chdir(engagementDir) } catch {}
+  try {
+    fs.mkdirSync(engagementDir, { recursive: true })
+    process.chdir(engagementDir)
+  } catch (e) {
+    // Swallowing this would leave the server in the wrong cwd, so every relative
+    // `.openhack/*` path would silently resolve against the wrong place.
+    throw new Error(
+      `MCP cannot use engagement directory ${engagementDir}: ${e instanceof Error ? e.message : String(e)}`,
+    )
+  }
   _installedCwd = true
 }
 
@@ -129,8 +137,14 @@ export function checkConsent(opts: ConsentGateOptions): ConsentDecision {
 /** Delete the strict-mode nonce file after a successful sensitive operation. */
 export function consumeNonce(strictNoncePath: string): void {
   try {
-    fs.rmSync(path.join(resolveEngagementDir(), strictNoncePath))
-  } catch {}
+    fs.rmSync(path.join(resolveEngagementDir(), strictNoncePath), { force: true })
+  } catch (e) {
+    // `force: true` already treats a missing file as success, so a real failure
+    // to delete a one-use nonce must be surfaced (a silent one could be replayed).
+    process.stderr.write(
+      `warning: MCP consent nonce could not be consumed (possible reuse): ${e instanceof Error ? e.message : String(e)}\n`,
+    )
+  }
 }
 
 // ─── tool + handler shapes ───────────────────────────────────────────────

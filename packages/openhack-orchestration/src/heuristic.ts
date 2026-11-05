@@ -342,7 +342,12 @@ export namespace HeuristicController {
     // into an adaptive one across runs. Failure to load the store leaves
     // scores untouched (defensive: never break the controller on a fresh engagement).
     let scoreStore: Scores.Store | null = null
-    try { scoreStore = Scores.load(target) } catch {}
+    try {
+      scoreStore = Scores.load(target)
+    } catch {
+      // Defensive: a missing/corrupt score store must never break the controller
+      // (see the note above) — leave scoreStore null and scores untouched.
+    }
     if (scoreStore) {
       for (const n of addNodes) {
         if (AttackGraph.isAction(n)) {
@@ -387,7 +392,9 @@ export namespace HeuristicController {
     try {
       const picked = router(prompt)
       if (typeof picked === "string" && picked.length) return picked
-    } catch {}
+    } catch {
+      // Router threw; use the doctrine fallback below (the real enforcement is at dispatch).
+    }
     return fallback
   }
 

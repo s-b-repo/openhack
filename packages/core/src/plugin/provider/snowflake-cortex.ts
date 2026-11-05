@@ -15,7 +15,9 @@ export function cortexFetch(upstream: FetchLike = fetch) {
           delete body.max_tokens
           init = { ...init, body: JSON.stringify(body) }
         }
-      } catch {}
+      } catch {
+        // Body wasn't JSON we can remap; pass the request through unchanged.
+      }
     }
 
     const response = await upstream(url, init)
@@ -34,7 +36,9 @@ export function cortexFetch(upstream: FetchLike = fetch) {
             { status: 200, headers: new Headers({ "content-type": "application/json" }) },
           )
         }
-      } catch {}
+      } catch {
+        // Couldn't parse the 400 body as the expected shape; fall through to default error handling.
+      }
     }
 
     // Cortex returns role:"" in streaming deltas; the AI SDK schema requires "assistant"

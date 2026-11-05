@@ -68,11 +68,14 @@ class RpcClient {
         const line = this.buf.slice(0, nl).trim()
         this.buf = this.buf.slice(nl + 1)
         if (!line) continue
+        let msg
         try {
-          const msg = JSON.parse(line)
-          const cb = this.pending.get(msg.id)
-          if (cb) { this.pending.delete(msg.id); cb(msg) }
-        } catch {}
+          msg = JSON.parse(line)
+        } catch {
+          continue // not a JSON-RPC line (e.g. a stray log line on stdout) — skip it
+        }
+        const cb = this.pending.get(msg.id)
+        if (cb) { this.pending.delete(msg.id); cb(msg) }
       }
     })
     proc.stderr.setEncoding("utf-8")

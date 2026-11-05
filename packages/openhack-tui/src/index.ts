@@ -55,12 +55,16 @@ function autodetectTarget(): string | undefined {
   try {
     const files = fs.readdirSync(dir).filter((f) => f.endsWith(".jsonl"))
     if (files.length) return files[0]!.replace(/\.jsonl$/, "")
-  } catch {}
+  } catch {
+    // rounds/ dir may not exist yet — fall through to the findings/ source below.
+  }
   try {
     const dir2 = path.join(ENGAGEMENT_DIR, ".openhack", "findings")
     const files = fs.readdirSync(dir2).filter((f) => f.endsWith(".json") && !f.startsWith("."))
     if (files.length) return files[0]!.replace(/\.json$/, "")
-  } catch {}
+  } catch {
+    // findings/ dir may not exist yet — no target to infer; return undefined below.
+  }
   return undefined
 }
 

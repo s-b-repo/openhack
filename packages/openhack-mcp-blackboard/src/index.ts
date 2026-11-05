@@ -138,7 +138,7 @@ async function handle(name: string, args: Record<string, any>) {
 
 runStdioMain({
   name: "openhack-blackboard-mcp",
-  tools: TOOLS as any,
+  tools: TOOLS,
   handle,
   banner: () => `in ${ENGAGEMENT_DIR} · post_allowed=${!!process.env.OPENHACK_BLACKBOARD_MCP_ALLOW_POST}`,
 })

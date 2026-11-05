@@ -47,5 +47,23 @@
   "options": {
     "typeAware": true
   },
+  "overrides": [
+    {
+      // Packages added in this fork are held to a stricter bar: no swallowed
+      // errors, no explicit any, no ts-suppressions. (Upstream code is exempt
+      // to avoid a mass rewrite.)
+      "files": [
+        "packages/openhack-board/**",
+        "packages/openhack-tools/**",
+        "packages/openhack-cli/src/cli/cmd/board.ts",
+        "packages/openhack-cli/src/cli/cmd/tools.ts"
+      ],
+      "rules": {
+        "no-empty": ["error", { "allowEmptyCatch": false }],
+        "typescript/no-explicit-any": "error",
+        "typescript/ban-ts-comment": "error"
+      }
+    }
+  ],
   "ignorePatterns": ["**/node_modules", "**/dist", "**/.build", "**/.sst", "**/*.d.ts", "**/sdk.gen.ts"]
 }

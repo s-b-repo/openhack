@@ -67,7 +67,7 @@ export namespace GraphStore {
   }): string {
     const nodeKeys = Object.keys(snap.nodes)
       .sort()
-      .map((id) => `${id}|${(snap.nodes[id] as any).kind ?? (id.startsWith("finding:") ? "finding" : "action")}`)
+      .map((id) => `${id}|${(snap.nodes[id] as { kind?: string }).kind ?? (id.startsWith("finding:") ? "finding" : "action")}`)
       .join(";")
     const edgeKeys = [...snap.edges]
       .map((e) => `${e.from}|${e.kind}|${e.to}`)
@@ -151,16 +151,22 @@ export namespace GraphStore {
       } catch {
         try {
           if (Date.now() - fs.statSync(lock).mtimeMs > 10_000) fs.rmSync(lock, { recursive: true, force: true })
-        } catch {}
+        } catch {
+          // Lock vanished or isn't stat-able; fall through to the wait/retry below.
+        }
         if (Date.now() - start > 15_000) {
           try {
             fs.rmSync(lock, { recursive: true, force: true })
-          } catch {}
+          } catch {
+            // Best-effort steal of a stuck lock after the timeout; retry regardless.
+          }
           continue
         }
         try {
           Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25)
-        } catch {}
+        } catch {
+          // SharedArrayBuffer unavailable in this runtime; busy-retry instead of sleeping.
+        }
       }
     }
     try {
@@ -168,7 +174,9 @@ export namespace GraphStore {
     } finally {
       try {
         fs.rmSync(lock, { recursive: true, force: true })
-      } catch {}
+      } catch {
+        // Lock already removed (e.g. stolen as stale); nothing to release.
+      }
     }
   }
 }
