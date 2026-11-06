@@ -10,7 +10,9 @@
     "customConditions": ["browser"],
     "paths": {
       "@/*": ["./src/*"],
-      "@test/*": ["./test/*"]
+      "@test/*": ["./test/*"],
+      "@opencode-ai/plugin": ["../plugin/src/index.ts"],
+      "@opencode-ai/plugin/*": ["../plugin/src/*"]
     }
   }
 }
