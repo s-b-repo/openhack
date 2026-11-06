@@ -317,7 +317,10 @@ async function handleToolCall(request: CallToolRequest) {
           if (fs.lstatSync(outputFile).isSymbolicLink()) {
             return toolError("Blocked: refusing to write through a symlink")
           }
-        } catch {}
+        } catch {
+          // lstat throws when there's no existing file at the target — nothing to
+          // guard against, so fall through to the write below.
+        }
         fs.writeFileSync(outputFile, JSON.stringify(result.data, null, 2), { mode: 0o600 })
         return {
           content: [{ type: "text", text: `Report exported to ${outputFile}` }],

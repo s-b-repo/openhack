@@ -203,7 +203,7 @@ async function handle(name: string, args: Record<string, any>) {
 
 runStdioMain({
   name: "openhack-findings-mcp",
-  tools: TOOLS as any,
+  tools: TOOLS,
   handle,
   banner: () => `in ${ENGAGEMENT_DIR} · mutate_allowed=${!!process.env.OPENHACK_FINDINGS_MCP_ALLOW_MUTATE}`,
 })

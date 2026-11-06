@@ -22,7 +22,14 @@ class RpcClient {
         const line = this.buf.slice(0, nl).trim()
         this.buf = this.buf.slice(nl + 1)
         if (!line) continue
-        try { const m = JSON.parse(line); const cb = this.pending.get(m.id); if (cb) { this.pending.delete(m.id); cb(m) } } catch {}
+        let m
+        try {
+          m = JSON.parse(line)
+        } catch {
+          continue // not a JSON-RPC line (e.g. a stray log line on stdout) — skip it
+        }
+        const cb = this.pending.get(m.id)
+        if (cb) { this.pending.delete(m.id); cb(m) }
       }
     })
     proc.stderr.setEncoding("utf-8")

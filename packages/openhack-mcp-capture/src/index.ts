@@ -200,7 +200,7 @@ export async function handle(name: string, args: Record<string, any>) {
         return err(`chromium failed: ${(r.stderr ?? Buffer.alloc(0)).toString().slice(0, 500)}`)
       }
       const buf = fs.readFileSync(tmpFile)
-      try { fs.unlinkSync(tmpFile) } catch {}
+      try { fs.unlinkSync(tmpFile) } catch { /* temp file cleanup is best-effort */ }
       const out = saveArtifact(String(args.target), String(args.url), "png", buf)
       return ok(`Screenshot saved.\n\n${json(out)}`)
     }
@@ -233,9 +233,9 @@ export async function handle(name: string, args: Record<string, any>) {
         response_headers_raw: respHeaders,
         response_bytes: respBody.length,
       }
-      try { fs.unlinkSync(headerFile) } catch {}
+      try { fs.unlinkSync(headerFile) } catch { /* temp file cleanup is best-effort */ }
       const buf = Buffer.from(JSON.stringify(har, null, 2) + "\n\n----- BODY -----\n" + respBody.toString("utf-8"))
-      try { fs.unlinkSync(bodyFile) } catch {}
+      try { fs.unlinkSync(bodyFile) } catch { /* temp file cleanup is best-effort */ }
       const out = saveArtifact(String(args.target), String(args.url), "har.txt", buf)
       return ok(`HAR saved (${respHeaders.split("\n")[0]?.trim() ?? "?"}).\n\n${json(out)}`)
     }
@@ -306,7 +306,7 @@ export async function handle(name: string, args: Record<string, any>) {
 if (!process.env.OPENHACK_MCP_NO_MAIN) {
   runStdioMain({
     name: "openhack-capture-mcp",
-    tools: TOOLS as any,
+    tools: TOOLS,
     handle,
     banner: () => `in ${ENGAGEMENT_DIR} · chromium=${chromiumBinary() ?? "(missing)"} · write_allowed=${!!process.env.OPENHACK_CAPTURE_MCP_ALLOW}`,
   })

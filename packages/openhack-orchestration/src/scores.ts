@@ -80,7 +80,10 @@ export namespace Scores {
         try {
           fs.mkdirSync(DIR, { recursive: true })
           fs.renameSync(legacy, f)
-        } catch {}
+        } catch {
+          // Best-effort one-time migration; on failure we fall through to loading
+          // (or creating) the store at the new path below.
+        }
       }
     }
     if (!fs.existsSync(f)) return empty(target)

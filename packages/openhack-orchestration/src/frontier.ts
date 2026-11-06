@@ -37,7 +37,9 @@ export namespace Frontier {
     try {
       const first = Net.firstTarget(prompt)
       if (first) return first
-    } catch {}
+    } catch {
+      // No parseable target in the prompt; fall back to the regex / outerTarget below.
+    }
     const m = TARGET_PATTERN.exec(prompt)
     return m ? m[0] : fallback
   }
@@ -73,7 +75,7 @@ export namespace Frontier {
       if (decision.blocked) {
         a.status = "blocked"
         a.blockedReason = `${decision.kind ?? "policy"}: ${decision.reason ?? "blocked"}`
-        blocked.push({ action: a, kind: (decision.kind ?? "scope") as any, reason: a.blockedReason })
+        blocked.push({ action: a, kind: decision.kind ?? "scope", reason: a.blockedReason })
         continue
       }
 
@@ -88,7 +90,14 @@ export namespace Frontier {
           blocked.push({ action: a, kind: "roe", reason: a.blockedReason })
           continue
         }
-      } catch {}
+      } catch (e) {
+        // Fail closed: a ROE check that errors must NOT let the action through.
+        // Swallowing this previously let an enforcement failure silently pass.
+        a.status = "blocked"
+        a.blockedReason = `roe: enforcement error (${e instanceof Error ? e.message : String(e)})`
+        blocked.push({ action: a, kind: "roe", reason: a.blockedReason })
+        continue
+      }
 
       // (3) Resource conflict — soft: lower score, add reason, still keep.
       try {
@@ -99,7 +108,10 @@ export namespace Frontier {
           a.score = Math.max(0, a.score - 5)
           a.blockedReason = `resource: target ${target} held by ${conflicts[0].agent}`
         }
-      } catch {}
+      } catch {
+        // Soft, best-effort penalty only; if the resource table can't be read we
+        // simply apply no penalty and keep the action.
+      }
 
       kept.push(a)
     }

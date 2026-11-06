@@ -40,8 +40,16 @@ const ENGAGEMENT_DIR = process.env.OPENHACK_ENGAGEMENT_DIR
 let installedCwd = false
 function ensureCwd(): void {
   if (installedCwd) return
-  try { fs.mkdirSync(ENGAGEMENT_DIR, { recursive: true }) } catch {}
-  try { process.chdir(ENGAGEMENT_DIR) } catch {}
+  try {
+    fs.mkdirSync(ENGAGEMENT_DIR, { recursive: true })
+    process.chdir(ENGAGEMENT_DIR)
+  } catch (e) {
+    // Swallowing this would leave the server in the wrong cwd, so every relative
+    // `.openhack/` ROE path would silently resolve against the wrong place.
+    throw new Error(
+      `ROE MCP cannot use engagement directory ${ENGAGEMENT_DIR}: ${e instanceof Error ? e.message : String(e)}`,
+    )
+  }
   installedCwd = true
 }
 
@@ -64,7 +72,16 @@ function readConsentNonce(): string | null {
   } catch { return null }
 }
 function consumeConsentNonce(): void {
-  try { fs.rmSync(path.join(".openhack", "roe", ".mcp-consent-nonce")) } catch {}
+  // `force: true` already treats a missing file as success, so any error that
+  // still escapes is a real failure to delete a one-use nonce — surface it
+  // rather than swallow it, since a silently-undeleted nonce could be replayed.
+  try {
+    fs.rmSync(path.join(".openhack", "roe", ".mcp-consent-nonce"), { force: true })
+  } catch (e) {
+    process.stderr.write(
+      `warning: ROE consent nonce could not be consumed (possible reuse): ${e instanceof Error ? e.message : String(e)}\n`,
+    )
+  }
 }
 
 interface ConsentDecision { allowed: boolean; reason?: string }

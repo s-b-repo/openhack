@@ -51,7 +51,7 @@ async function urlscanDomain(domain: string): Promise<string[]> {
     const hosts = new Set<string>()
     for (const res of j?.results ?? []) {
       const url = String(res?.task?.url ?? res?.page?.url ?? "")
-      try { hosts.add(new URL(url).hostname.toLowerCase()) } catch {}
+      try { hosts.add(new URL(url).hostname.toLowerCase()) } catch { /* skip an unparseable URL from the source */ }
     }
     return [...hosts].filter((h) => h.endsWith(domain.toLowerCase())).sort()
   } catch { return [] }
@@ -178,7 +178,7 @@ export async function handle(name: string, args: Record<string, any>) {
 if (!process.env.OPENHACK_MCP_NO_MAIN) {
   runStdioMain({
     name: "openhack-dns-mcp",
-    tools: TOOLS as any,
+    tools: TOOLS,
     handle,
     chdirToEngagement: false,
     banner: () => `urlscan_key=${!!process.env.URLSCAN_API_KEY}`,

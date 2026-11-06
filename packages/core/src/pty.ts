@@ -108,7 +108,9 @@ const layer = Layer.effect(
         }
         try {
           subscriber.onEnd(event)
-        } catch {}
+        } catch {
+          // One subscriber's onEnd throwing must not stop us notifying the rest.
+        }
       }
       session.subscribers.clear()
     }
@@ -119,7 +121,9 @@ const layer = Layer.effect(
       if (session.info.status === "running") {
         try {
           session.process.kill()
-        } catch {}
+        } catch {
+          // Process may already have exited (ESRCH) — teardown continues regardless.
+        }
       }
       notifyEnd(session, {})
     }
