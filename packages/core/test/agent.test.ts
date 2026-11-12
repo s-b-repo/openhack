@@ -99,7 +99,7 @@ describe("AgentV2", () => {
     }),
   )
 
-  it.effect("does not ambiently opt built-in agents into bash", () =>
+  it.effect("only the security agents are ambiently opted into bash", () =>
     Effect.gen(function* () {
       const agent = yield* AgentV2.Service
       yield* AgentPlugin.Plugin.effect(
@@ -132,8 +132,16 @@ describe("AgentV2", () => {
         "title",
         "triage",
       ])
+      // OpenHack grants shell access to its security agents (they drive
+      // external tooling); every bash call is still gated at runtime by the
+      // safety / scope / ROE enforcement layer. Every OTHER built-in agent
+      // must not be ambiently opted into bash — this catches both an
+      // accidental grant to a utility agent and an accidental removal from a
+      // security agent.
+      const BASH_AGENTS = new Set(["recon", "exploit", "post-exploit", "c2", "triage", "cleanup"])
       for (const item of agents) {
-        expect(item.permissions.some((rule) => rule.action === "bash" && rule.effect !== "deny")).toBe(false)
+        const hasBash = item.permissions.some((rule) => rule.action === "bash" && rule.effect !== "deny")
+        expect(hasBash).toBe(BASH_AGENTS.has(String(item.id)))
       }
     }),
   )
