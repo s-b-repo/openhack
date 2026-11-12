@@ -119,6 +119,31 @@ jobs:
           done
           exit $status
 
+      - name: Diagnose combos CLI exit code
+        id: diag_combos
+        if: always()
+        continue-on-error: true
+        run: |
+          set +e
+          tmp=$(mktemp -d)
+          cd "$tmp"
+          mkdir -p .openhack
+          repo="$GITHUB_WORKSPACE"
+          cat > cli-wrapper.ts <<EOF
+          import yargs from "yargs"
+          import { OpenHackCommand } from "${GITHUB_WORKSPACE}/packages/openhack-cli/src/cli/cmd/openhack.ts"
+          const y: any = yargs(process.argv.slice(2))
+          if (OpenHackCommand.builder) OpenHackCommand.builder(y)
+          await y.parseAsync()
+          EOF
+          echo "===== combos --version-info ====="
+          bun run cli-wrapper.ts combos --target example.com --version-info
+          echo "exit=$?"
+          echo "===== combos --gaps (stderr shown) ====="
+          bun run cli-wrapper.ts combos --target example.com --gaps
+          echo "exit=$?"
+          cd "$repo"
+
       - name: Summary
         if: always()
         run: |
