@@ -38,12 +38,17 @@ afterEach(() => {
 })
 
 function runCli(args: string[]) {
-  // Invoke the openhack CLI's TypeScript entry directly. We call the openhack.ts
-  // subcommand file via a small runner script — but a cleaner approach is to
-  // point at the openhack/src entry. Since that has a heavy dep graph, we take
-  // the pragmatic path: invoke the standalone openhack.ts via bun with a small
-  // wrapper.
-  const wrapperPath = path.join(scratch, "cli-wrapper.ts")
+  // Invoke the openhack CLI's TypeScript entry directly via a small runner
+  // script. The wrapper MUST live inside the repo tree (not the scratch dir in
+  // os.tmpdir()), because `bun run` resolves bare imports like "yargs" from the
+  // script's own directory upward — from /tmp there is no reachable node_modules
+  // and resolution fails with ENOENT. We keep the child's cwd on the scratch
+  // fixture so the CLI reads the seeded .openhack store from there.
+  const wrapperPath = path.join(
+    repoRoot,
+    "packages/openhack-cli",
+    `.combos-cli-wrapper.${process.pid}.${Math.random().toString(36).slice(2)}.ts`,
+  )
   fs.writeFileSync(wrapperPath, `
 import yargs from "yargs"
 import { OpenHackCommand } from "${path.join(repoRoot, "packages/openhack-cli/src/cli/cmd/openhack.ts").replace(/\\/g, "/")}"
@@ -51,7 +56,11 @@ const y: any = yargs(process.argv.slice(2))
 if (OpenHackCommand.builder) OpenHackCommand.builder(y)
 await y.parseAsync()
 `)
-  return spawnSync("bun", ["run", wrapperPath, ...args], { encoding: "utf-8", cwd: scratch, env: { ...process.env } })
+  try {
+    return spawnSync("bun", ["run", wrapperPath, ...args], { encoding: "utf-8", cwd: scratch, env: { ...process.env } })
+  } finally {
+    fs.rmSync(wrapperPath, { force: true })
+  }
 }
 
 describe("openhack combos CLI", () => {

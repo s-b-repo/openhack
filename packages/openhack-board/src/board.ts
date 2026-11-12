@@ -207,7 +207,7 @@ export class Project {
       const m = data.main ?? {}
       this.main = makeAgent("main", m.provider ?? "", m.model ?? "", m.api_key ?? "")
       this.agents = {}
-      for (const [name, a] of Object.entries<any>(data.agents ?? {})) {
+      for (const [name, a] of Object.entries<{ provider?: string; model?: string; api_key?: string }>(data.agents ?? {})) {
         this.agents[name] = makeAgent(name, a.provider ?? "", a.model ?? "", a.api_key ?? "")
       }
     }
@@ -310,8 +310,8 @@ export class Project {
       try {
         fd = fs.openSync(lp, "wx") // atomic create; fails EEXIST if held
         break
-      } catch (e: any) {
-        if (e?.code !== "EEXIST") throw e
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException)?.code !== "EEXIST") throw e
         try {
           // steal a stale lock left by a crashed writer
           if (Date.now() - fs.statSync(lp).mtimeMs > 30000) {

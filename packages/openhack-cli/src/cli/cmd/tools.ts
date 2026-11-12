@@ -7,7 +7,7 @@ import {
 
 const GREEN = "\x1b[32m", YELLOW = "\x1b[33m", RED = "\x1b[31m", DIM = "\x1b[2m", RESET = "\x1b[0m", BOLD = "\x1b[1m", CYAN = "\x1b[36m"
 
-function base(argv: any): string {
+function base(argv: { base?: string }): string {
   return argv.base || process.env.OPENHACK_TOOLS_BASE || defaultBase()
 }
 
@@ -39,7 +39,7 @@ function runArgvInherit(argv: string[] | null, what: string): void {
   if (r.status && r.status !== 0) process.exitCode = r.status
 }
 
-export const ToolsCommand: CommandModule<any, any> = {
+export const ToolsCommand: CommandModule = {
   command: "tools",
   describe: "build, run, update and inspect the open-source security tools",
   builder: (y: Argv) =>

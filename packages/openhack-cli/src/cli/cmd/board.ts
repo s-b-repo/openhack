@@ -8,7 +8,7 @@ import {
   rememberProject,
 } from "@openhack-ai/board"
 
-function open(argv: any): Project {
+function open(argv: { project?: string }): Project {
   const p = new Project(argv.project || process.cwd())
   if (!p.exists()) p.initDefaults()
   else p.load()
@@ -18,7 +18,7 @@ function open(argv: any): Project {
 
 const GREEN = "\x1b[32m", RED = "\x1b[31m", DIM = "\x1b[2m", RESET = "\x1b[0m", BOLD = "\x1b[1m"
 
-export const BoardCommand: CommandModule<any, any> = {
+export const BoardCommand: CommandModule = {
   command: "board",
   describe: "per-project agent config + an Ed25519-signed, verified message board",
   builder: (y: Argv) =>
@@ -76,8 +76,8 @@ export const BoardCommand: CommandModule<any, any> = {
           try {
             p.addAgent(argv.agent)
             console.log(`${GREEN}added${RESET} sub-agent '${argv.agent}'`)
-          } catch (e: any) {
-            fail(e.message)
+          } catch (e) {
+            fail(e instanceof Error ? e.message : String(e))
           }
         },
       )

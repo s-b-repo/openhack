@@ -36,7 +36,7 @@ describe("normalizeAgentList", () => {
 
 describe("directoryKey", () => {
   test("normalizes slashes", () => {
-    expect(String(directoryKey("C:\\Repos\\sst\\openhack"))).toBe("C:/Repos/s-b-repo/openhack")
+    expect(String(directoryKey("C:\\Repos\\s-b-repo\\openhack"))).toBe("C:/Repos/s-b-repo/openhack")
     expect(String(directoryKey("C:/Repos/s-b-repo/openhack"))).toBe("C:/Repos/s-b-repo/openhack")
   })
 
