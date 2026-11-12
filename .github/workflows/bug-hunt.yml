@@ -1,0 +1,165 @@
+name: bug-hunt
+
+# Comprehensive code-health sweep run on GitHub-hosted runners.
+# Every check uses continue-on-error so a single run surfaces ALL problems
+# (type errors, lint errors, test failures, build failures) at once instead
+# of failing fast on the first one. A final gate step fails the run if any
+# check failed, and writes a summary table.
+
+on:
+  push:
+    branches:
+      - chore/lazy-cli-and-code-quality
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bug-hunt-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sweep:
+    name: full sweep
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Configure git identity
+        run: |
+          git config --global user.email "bot@cybersec.org.za"
+          git config --global user.name "openhack"
+
+      - name: Install dependencies
+        id: install
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          # Mirror the repo's setup-bun workaround for patched peer variants.
+          bun install 2>&1 | tee install.log || bun install --linker hoisted 2>&1 | tee -a install.log
+
+      - name: Typecheck (bun turbo typecheck)
+        id: typecheck
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          bun turbo typecheck 2>&1 | tee typecheck.log
+
+      - name: Lint (oxlint)
+        id: lint
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          bun run lint 2>&1 | tee lint.log
+
+      - name: Unit tests (bun turbo test)
+        id: test
+        continue-on-error: true
+        env:
+          GITHUB_ACTIONS: "false"
+          OPENHACK_EXPERIMENTAL_DISABLE_FILEWATCHER: "true"
+        run: |
+          set -o pipefail
+          bun turbo test 2>&1 | tee test.log
+
+      - name: openhack package tests (bun test)
+        id: test_openhack
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          bun test --cwd packages/openhack 2>&1 | tee test-openhack.log
+
+      - name: Build core modules (bun build)
+        id: build
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          status=0
+          for f in \
+            packages/openhack/src/index.ts \
+            packages/openhack/src/plugin/index.ts \
+            packages/openhack/src/plugin/enforcement.ts \
+            packages/openhack/src/net.ts \
+            packages/openhack/src/persist.ts \
+            packages/openhack/src/roe.ts \
+            packages/openhack/src/moe-router.ts \
+            packages/openhack/src/findings.ts \
+            packages/openhack/src/scope.ts \
+            packages/openhack/src/resources.ts \
+            packages/openhack/src/secrets.ts \
+            packages/openhack/src/audit.ts \
+            packages/openhack/src/middleware.ts \
+            packages/openhack/src/safety/index.ts \
+            packages/openhack/src/automode/index.ts \
+            packages/openhack/src/hooks/shell-hook.ts \
+            packages/openhack/src/hallucination.ts \
+            packages/openhack/src/workflow.ts \
+            packages/openhack/src/mcp-launcher.ts \
+            packages/openhack-sysreptor/src/index.ts; do
+            if [ -f "$f" ]; then
+              echo "::group::build $f"
+              bun build "$f" --target node --outfile /dev/null 2>&1 | tee -a build.log || { status=1; echo "BUILD FAILED: $f" | tee -a build.log; }
+              echo "::endgroup::"
+            else
+              echo "SKIP (missing): $f" | tee -a build.log
+            fi
+          done
+          exit $status
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Bug-hunt results"
+            echo ""
+            echo "| Check | Outcome |"
+            echo "|---|---|"
+            echo "| Install | ${{ steps.install.outcome }} |"
+            echo "| Typecheck | ${{ steps.typecheck.outcome }} |"
+            echo "| Lint | ${{ steps.lint.outcome }} |"
+            echo "| Unit tests (turbo) | ${{ steps.test.outcome }} |"
+            echo "| openhack tests | ${{ steps.test_openhack.outcome }} |"
+            echo "| Build modules | ${{ steps.build.outcome }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bug-hunt-logs
+          path: |
+            *.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Final gate
+        if: always()
+        run: |
+          fail=0
+          for o in \
+            "${{ steps.install.outcome }}" \
+            "${{ steps.typecheck.outcome }}" \
+            "${{ steps.lint.outcome }}" \
+            "${{ steps.test.outcome }}" \
+            "${{ steps.test_openhack.outcome }}" \
+            "${{ steps.build.outcome }}"; do
+            [ "$o" = "failure" ] && fail=1
+          done
+          if [ "$fail" = "1" ]; then
+            echo "One or more checks failed — see summary and logs artifact."
+            exit 1
+          fi
+          echo "All checks passed."
