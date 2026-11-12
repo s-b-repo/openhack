@@ -110,20 +110,6 @@ export const Info = Schema.Struct({
   mcp: Schema.optional(
     Schema.Record(Schema.String, Schema.Union([ConfigMCPV1.Info, Schema.Struct({ enabled: Schema.Boolean })])),
   ).annotate({ description: "MCP (Model Context Protocol) server configurations" }),
-  // OpenHack extensions. These top-level namespaces are consumed by the
-  // enforcement plugin / automode / orchestration layers (which read
-  // .openhack/openhack.jsonc directly). They are declared here so the upstream
-  // strict config loader accepts the bundled engagement config instead of
-  // rejecting it with "unrecognized key" (ConfigInvalidError).
-  scope: Schema.optional(Schema.Unknown).annotate({ description: "OpenHack engagement scope configuration" }),
-  safety: Schema.optional(Schema.Unknown).annotate({ description: "OpenHack safety-harness configuration" }),
-  roe: Schema.optional(Schema.Unknown).annotate({ description: "OpenHack rules-of-engagement configuration" }),
-  automode: Schema.optional(Schema.Unknown).annotate({ description: "OpenHack automode / tight-loop configuration" }),
-  graph: Schema.optional(Schema.Unknown).annotate({ description: "OpenHack attack-graph controller configuration" }),
-  managers: Schema.optional(Schema.Unknown).annotate({ description: "OpenHack manager-hierarchy configuration" }),
-  blackboard: Schema.optional(Schema.Unknown).annotate({ description: "OpenHack blackboard configuration" }),
-  deception: Schema.optional(Schema.Unknown).annotate({ description: "OpenHack deception-layer configuration" }),
-  codeguard: Schema.optional(Schema.Unknown).annotate({ description: "OpenHack codeguard configuration" }),
   formatter: Schema.optional(ConfigFormatterV1.Info).annotate({
     description:
       "Enable or configure formatters. Omit or set to false to disable, true to enable built-ins, or an object to enable built-ins with overrides.",

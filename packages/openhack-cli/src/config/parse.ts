@@ -78,10 +78,13 @@ export function schema<S extends EffectSchema.Decoder<unknown, never>>(
 const OPENHACK_ENGINE_KEYS = new Set([
   "scope",
   "safety",
+  "roe",
   "automode",
   "codeguard",
   "agent",
   "graph",
+  "managers",
+  "blackboard",
   "round_budget",
   "shell",
   "tool_presets",
