@@ -116,12 +116,21 @@ describe("AgentV2", () => {
       const agents = yield* agent.all()
       expect(agents.map((item) => String(item.id)).sort()).toEqual([
         "build",
+        "c2",
+        "cleanup",
         "compaction",
+        "council",
+        "exploit",
         "explore",
         "general",
         "plan",
+        "planner",
+        "post-exploit",
+        "recon",
+        "report",
         "summary",
         "title",
+        "triage",
       ])
       for (const item of agents) {
         expect(item.permissions.some((rule) => rule.action === "bash" && rule.effect !== "deny")).toBe(false)

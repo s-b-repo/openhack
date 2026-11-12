@@ -1,4 +1,4 @@
-import type { Argv, CommandModule } from "yargs"
+import type { ArgumentsCamelCase, Argv, CommandModule } from "yargs"
 import { spawnSync } from "node:child_process"
 import * as fs from "node:fs"
 import {
@@ -7,8 +7,9 @@ import {
 
 const GREEN = "\x1b[32m", YELLOW = "\x1b[33m", RED = "\x1b[31m", DIM = "\x1b[2m", RESET = "\x1b[0m", BOLD = "\x1b[1m", CYAN = "\x1b[36m"
 
-function base(argv: { base?: string }): string {
-  return argv.base || process.env.OPENHACK_TOOLS_BASE || defaultBase()
+function base(argv: ArgumentsCamelCase): string {
+  const b = typeof argv.base === "string" ? argv.base : undefined
+  return b || process.env.OPENHACK_TOOLS_BASE || defaultBase()
 }
 
 function stateColor(state: string): string {

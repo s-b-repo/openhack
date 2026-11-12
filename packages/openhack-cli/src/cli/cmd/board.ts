@@ -1,4 +1,4 @@
-import type { Argv, CommandModule } from "yargs"
+import type { ArgumentsCamelCase, Argv, CommandModule } from "yargs"
 import {
   Project,
   keyDisplay,
@@ -8,8 +8,8 @@ import {
   rememberProject,
 } from "@openhack-ai/board"
 
-function open(argv: { project?: string }): Project {
-  const p = new Project(argv.project || process.cwd())
+function open(argv: ArgumentsCamelCase): Project {
+  const p = new Project(typeof argv.project === "string" ? argv.project : process.cwd())
   if (!p.exists()) p.initDefaults()
   else p.load()
   rememberProject(p.root)

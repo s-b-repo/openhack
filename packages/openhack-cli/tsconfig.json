@@ -11,8 +11,8 @@
     "paths": {
       "@/*": ["./src/*"],
       "@test/*": ["./test/*"],
-      "@openhack-ai/plugin": ["../plugin/src/index.ts"],
-      "@openhack-ai/plugin/*": ["../plugin/src/*"]
+      "@opencode-ai/plugin": ["../plugin/src/index.ts"],
+      "@opencode-ai/plugin/*": ["../plugin/src/*"]
     }
   }
 }
